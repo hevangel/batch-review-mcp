@@ -68,7 +68,7 @@ jobs:
           uv build
 
       - name: Pack MCP bundle
-        run: uv run python scripts/build_mcpb.py --repo-root "$SOURCE_DIR"
+        run: uv run --no-project python scripts/build_mcpb.py --repo-root "$SOURCE_DIR"
 
       - name: List release artifacts
         run: |
@@ -78,7 +78,7 @@ jobs:
       - name: Verify server.json for MCP registry (MCPB URL + SHA-256)
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: uv run python scripts/verify_release_mcp_registry.py --repo-root "$SOURCE_DIR" --tag "$RELEASE_TAG"
+        run: uv run --no-project python scripts/verify_release_mcp_registry.py --repo-root "$SOURCE_DIR" --tag "$RELEASE_TAG"
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
