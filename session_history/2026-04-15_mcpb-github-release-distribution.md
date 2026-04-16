@@ -33,3 +33,6 @@ Added `mcpb/manifest.json` (UV runtime, `batch-review` + `--mcp` + `--no-browser
 1. `npm run build` in `frontend/`.
 2. `uv run python scripts/build_mcpb.py` from repo root.
 3. Update `server.json` `fileSha256` if the bundle changed; validate with `mcp-publisher validate`.
+
+## Follow-up
+- README note: prefer `fileSha256` of the **release asset** (Linux CI vs local Windows pack can differ).

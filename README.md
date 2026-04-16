@@ -86,7 +86,7 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The registry entry points at an **MCP Bundle** (`.mcpb`) attached to a **GitHub release** (not PyPI).
 
 1. Tag and create a GitHub release **`v0.1.0`** (or your version) and attach **`batch-review-mcp-0.1.0.mcpb`** from `dist/` (build it with `uv run python scripts/build_mcpb.py` after `npm run build` in `frontend/`).
-2. If the bundle bytes change, update **`fileSha256`** in `server.json` to match (`uv run python scripts/build_mcpb.py` prints the value).
+2. If the bundle bytes change, update **`fileSha256`** in `server.json` to match the **exact** file users download from the release (`uv run python scripts/build_mcpb.py` prints the value after a local pack; the GitHub Action also prints `sha256sum` in the job log—those digests can differ between Windows and Linux, so prefer the hash of the uploaded release asset when publishing to the registry).
 3. Install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases), run **`mcp-publisher login github`** (as `hevangel`), then from this repository run **`mcp-publisher publish`**.
 
 ### CLI flags
