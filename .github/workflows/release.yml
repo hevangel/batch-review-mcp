@@ -42,6 +42,10 @@ jobs:
           ref: ${{ env.RELEASE_TAG }}
           path: tag-src
 
+      - name: Overlay current release metadata onto tagged source
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        run: cp server.json "$SOURCE_DIR/server.json"
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
         with:
@@ -79,6 +83,7 @@ jobs:
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.RELEASE_TAG }}
           name: ${{ env.RELEASE_TAG }}
           generate_release_notes: true
           draft: false
