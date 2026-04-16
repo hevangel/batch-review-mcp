@@ -1,0 +1,52 @@
+{
+  "manifest_version": "0.4",
+  "name": "batch-review-mcp",
+  "display_name": "Batch Review",
+  "version": "0.1.0",
+  "description": "Collaborative git diff and markdown review with a web UI and MCP stdio for agents.",
+  "author": {
+    "name": "hevangel",
+    "url": "https://github.com/hevangel"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hevangel/batch-review-mcp.git"
+  },
+  "homepage": "https://github.com/hevangel/batch-review-mcp",
+  "server": {
+    "type": "uv",
+    "entry_point": "main.py",
+    "mcp_config": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "${__dirname}",
+        "batch-review",
+        "--mcp",
+        "--no-browser",
+        "--root",
+        "${user_config.repo_root}"
+      ],
+      "env": {
+        "FASTMCP_CHECK_FOR_UPDATES": "off"
+      }
+    }
+  },
+  "user_config": {
+    "repo_root": {
+      "type": "directory",
+      "title": "Git repository to review",
+      "description": "Root directory of the project you want to review (must be a git checkout).",
+      "required": true
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "python": ">=3.11,<4.0"
+    }
+  },
+  "tools_generated": true,
+  "license": "MIT"
+}

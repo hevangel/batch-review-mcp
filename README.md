@@ -1,7 +1,5 @@
 # Batch Review
 
-<!-- mcp-name: io.github.hevangel/batch-review-mcp -->
-
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
 ---
@@ -85,7 +83,11 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 
 ### Official MCP registry
 
-This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). After **`batch-review-mcp`** is published on **PyPI**, install the [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) CLI, run **`mcp-publisher login github`** (as `hevangel`), then from this repository run **`mcp-publisher publish`**. Registry verification reads the `<!-- mcp-name: … -->` line in this README from the PyPI project page.
+This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The registry entry points at an **MCP Bundle** (`.mcpb`) attached to a **GitHub release** (not PyPI).
+
+1. Tag and create a GitHub release **`v0.1.0`** (or your version) and attach **`batch-review-mcp-0.1.0.mcpb`** from `dist/` (build it with `uv run python scripts/build_mcpb.py` after `npm run build` in `frontend/`).
+2. If the bundle bytes change, update **`fileSha256`** in `server.json` to match (`uv run python scripts/build_mcpb.py` prints the value).
+3. Install [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases), run **`mcp-publisher login github`** (as `hevangel`), then from this repository run **`mcp-publisher publish`**.
 
 ### CLI flags
 

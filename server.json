@@ -11,43 +11,12 @@
   "version": "0.1.0",
   "packages": [
     {
-      "registryType": "pypi",
-      "registryBaseUrl": "https://pypi.org",
-      "identifier": "batch-review-mcp",
-      "version": "0.1.0",
-      "runtimeHint": "uvx",
+      "registryType": "mcpb",
+      "identifier": "https://github.com/hevangel/batch-review-mcp/releases/download/v0.1.0/batch-review-mcp-0.1.0.mcpb",
+      "fileSha256": "03ec3dffb5cbb9aef4ca84e345aaae574dc803f6a04cfe37d593ec2283490e11",
       "transport": {
         "type": "stdio"
-      },
-      "runtimeArguments": [
-        {
-          "type": "named",
-          "name": "--from",
-          "description": "PyPI distribution and version pin",
-          "value": "batch-review-mcp==0.1.0",
-          "isRequired": true
-        }
-      ],
-      "packageArguments": [
-        {
-          "type": "positional",
-          "value": "batch-review",
-          "description": "Console script provided by the distribution"
-        },
-        {
-          "type": "named",
-          "name": "--mcp",
-          "description": "Run MCP stdio transport (required for MCP clients)"
-        },
-        {
-          "type": "named",
-          "name": "--root",
-          "description": "Path to the git repository to review",
-          "format": "filepath",
-          "isRequired": true,
-          "valueHint": "repo_root"
-        }
-      ]
+      }
     }
   ],
   "_meta": {

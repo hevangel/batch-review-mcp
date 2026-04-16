@@ -1,0 +1,44 @@
+# Build batch-review-mcp-<version>.mcpb and attach it to the GitHub release for the pushed tag.
+name: Release MCPB
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  mcpb:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Pack MCP bundle
+        run: uv run python scripts/build_mcpb.py
+
+      - name: Print bundle SHA-256 (for server.json)
+        run: sha256sum dist/batch-review-mcp-*.mcpb
+
+      - name: Upload release asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/batch-review-mcp-*.mcpb
