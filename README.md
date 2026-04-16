@@ -1,5 +1,7 @@
 # Batch Review
 
+<!-- mcp-name: io.github.hevangel/batch-review-mcp -->
+
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
 ---
@@ -80,6 +82,10 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
   }
 }
 ```
+
+### Official MCP registry
+
+This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). After **`batch-review-mcp`** is published on **PyPI**, install the [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) CLI, run **`mcp-publisher login github`** (as `hevangel`), then from this repository run **`mcp-publisher publish`**. Registry verification reads the `<!-- mcp-name: … -->` line in this README from the PyPI project page.
 
 ### CLI flags
 

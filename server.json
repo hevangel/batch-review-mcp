@@ -1,0 +1,59 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.hevangel/batch-review-mcp",
+  "title": "Batch Review",
+  "description": "Git diff and markdown review with a web UI plus MCP stdio for AI agents.",
+  "websiteUrl": "https://github.com/hevangel/batch-review-mcp",
+  "repository": {
+    "url": "https://github.com/hevangel/batch-review-mcp",
+    "source": "github"
+  },
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "batch-review-mcp",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "description": "PyPI distribution and version pin",
+          "value": "batch-review-mcp==0.1.0",
+          "isRequired": true
+        }
+      ],
+      "packageArguments": [
+        {
+          "type": "positional",
+          "value": "batch-review",
+          "description": "Console script provided by the distribution"
+        },
+        {
+          "type": "named",
+          "name": "--mcp",
+          "description": "Run MCP stdio transport (required for MCP clients)"
+        },
+        {
+          "type": "named",
+          "name": "--root",
+          "description": "Path to the git repository to review",
+          "format": "filepath",
+          "isRequired": true,
+          "valueHint": "repo_root"
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "io.modelcontextprotocol.registry/publisher-provided": {
+      "tool": "cursor-agent",
+      "version": "1.0.0"
+    }
+  }
+}
