@@ -94,6 +94,11 @@ This project includes a root-level [`server.json`](./server.json) for the [Model
 3. Push the **tag** (e.g. `git tag v0.2.0 && git push origin v0.2.0`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
 4. After the release exists, run **`mcp-publisher publish`** (with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) and `mcp-publisher login github`). Optional: add **`PYPI_API_TOKEN`** so the same workflow can **`uv publish`** the wheel/sdist.
 
+If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
+rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
+(for example `v0.2.0`). That manual path checks out the tag you name, so you can recover
+the release without rebuilding from a different code revision.
+
 ### CLI flags
 
 | Flag | Default | Description |
