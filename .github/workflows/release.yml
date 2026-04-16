@@ -1,0 +1,65 @@
+# When a version tag like v0.1.0 is pushed: build wheel/sdist + MCPB, create a GitHub
+# Release with generated notes and attach artifacts, then optionally publish to PyPI.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Build Python wheel and sdist
+        run: uv build
+
+      - name: Pack MCP bundle
+        run: uv run python scripts/build_mcpb.py
+
+      - name: List release artifacts
+        run: |
+          ls -la dist/
+          sha256sum dist/*
+
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          files: |
+            dist/*.mcpb
+            dist/*.whl
+            dist/*.tar.gz
+
+      - name: Publish to PyPI
+        if: ${{ secrets.PYPI_API_TOKEN != '' }}
+        env:
+          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
+        run: uv publish
