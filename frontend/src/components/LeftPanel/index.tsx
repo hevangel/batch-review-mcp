@@ -33,7 +33,7 @@ export default function LeftPanel() {
     setActiveTab(tab);
   };
 
-  // Load git changes whenever the Git tab is active (covers MCP set_left_panel_tab).
+  // Load git changes whenever the Git tab is active.
   useEffect(() => {
     if (activeTab !== "git") return;
     let cancelled = false;

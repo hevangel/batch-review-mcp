@@ -187,10 +187,8 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
 | `open_file_in_ui(path, mode)` | Open a file in the browser center panel (`view` or `diff`) |
-| `close_file_in_ui()` | Clear the center panel |
 | `highlight_in_ui(path, line_start, line_end)` | Open file and highlight a 1-based line range |
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open file and highlight that anchor |
-| `set_left_panel_tab(tab)` | Switch the left sidebar to `files` or `git` |
 | `add_comment(...)` | Add a review comment; shows a short notice in the UI |
 | `update_comment(comment_id, text)` | Edit comment body; UI notice |
 | `delete_comment(id)` | Delete a comment; UI notice |
@@ -201,7 +199,6 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `list_review_files()` | List stems of `*.json` reviews in `output_dir` |
 | `load_review_by_stem(stem)` | Replace comments from `{stem}.json`; UI notice |
 | `save_comments(output_stem?, output_dir?)` | Save JSON + Markdown report, returns paths |
-| `refresh_file_tree()` | Ask browsers to reload the file tree |
 
 Comment **add**, **update**, **delete**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 

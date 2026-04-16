@@ -1,5 +1,6 @@
 #!/bin/sh
 # Reject commits that do not add or modify a session history log under session_history/.
+# Keep this script LF-only so Git can execute it correctly on Windows checkouts.
 # See CONTRIBUTING.md and AGENTS.md.
 
 if [ -f .git/MERGE_HEAD ]; then

@@ -20,7 +20,7 @@ mcp = FastMCP(
         "Start with git review context via get_git_changes() and get_git_diff(path), then use "
         "structured file reads only when extra context is needed. Manage review comments "
         "(add, update, delete, list, load saved reviews, save), drive the shared browser UI "
-        "(open, close, highlight, jump), read server config, and get the web UI URL. "
+        "(open, highlight, jump), read server config, and get the web UI URL. "
         "Directory listing is provided only as a navigation helper, not as a general-purpose "
         "filesystem API. The MCP resource ``batch-review://server/urls`` exposes the same "
         "connection URLs as JSON for hosts that read resources. UI-mutating tools broadcast "
@@ -183,29 +183,6 @@ async def highlight_in_ui(path: str, line_start: int, line_end: int) -> str:
         )
     )
     return f"Highlighted {path}:L{line_start}-{line_end} in UI"
-
-
-@mcp.tool
-async def close_file_in_ui() -> str:
-    """Clear the center panel (same effect as having no file selected)."""
-    state = _state()
-    await state.broadcast(WsEvent(type="close_file", payload=None))
-    return "Closed file in UI"
-
-
-@mcp.tool
-async def set_left_panel_tab(tab: str) -> str:
-    """Switch the left sidebar tab between the file tree and git changes.
-
-    Args:
-        tab: Either "files" or "git".
-    """
-    state = _state()
-    normalized = tab.strip().lower()
-    if normalized not in ("files", "git"):
-        return 'Error: tab must be "files" or "git"'
-    await state.broadcast(WsEvent(type="set_left_tab", payload={"tab": normalized}))
-    return f"Left panel tab set to {normalized}"
 
 
 @mcp.tool
@@ -417,17 +394,3 @@ async def load_review_by_stem(stem: str) -> list[dict]:
     )
     await _agent_notice(state, f"Agent loaded review '{stem}' ({len(loaded)} comment(s))")
     return [c.model_dump() for c in loaded]
-
-
-@mcp.tool
-async def refresh_file_tree() -> str:
-    """Broadcast a file tree refresh event to all connected browser clients.
-
-    Causes the Files tab in the UI to reload its directory listing immediately.
-
-    Returns:
-        Confirmation message.
-    """
-    state = _state()
-    await state.broadcast(WsEvent(type="refresh_files", payload=None))
-    return "File tree refresh broadcast sent to all connected clients"
