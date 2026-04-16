@@ -72,6 +72,18 @@ While creating the commit on Windows, found that `.githooks/pre-commit` used CRL
 ### Agent
 Investigated the repo-wide line-ending behavior, confirmed the large post-commit diff was CRLF/LF churn caused by mixing PowerShell and Git Bash on Windows, then rewrote the unpushed commit cleanly and added `.gitattributes` to keep future text checkouts normalized to LF.
 
+### User
+yes. update the README
+
+### Agent
+Reworked the README MCP section so it describes Batch Review as a review-state server, shows the intended agent flow, and lists the core review tools ahead of the helper/navigation tools.
+
+### User
+commit and push
+
+### Agent
+Prepared a small follow-up docs commit by updating this session history file, rerunning verification, and staging only the README wording change plus the session log update.
+
 ## Files changed
 - `backend/mcp_tools.py` — removed generic and low-value MCP tools, and rewrote tool instructions to emphasize a review-first workflow
 - `README.md` — updated the documented MCP tool list and clarified that the MCP surface is review-first
@@ -79,6 +91,10 @@ Investigated the repo-wide line-ending behavior, confirmed the large post-commit
 - `.gitattributes` — enforce LF text normalization to avoid cross-shell line-ending churn on Windows
 - `.githooks/pre-commit` — normalized the hook for Windows-compatible execution and clarified the LF-only requirement
 - `session_history/2026-04-15_trim-mcp-tool-surface.md` — recorded the session context required to reproduce this change
+
+### Follow-up docs update
+- `README.md` — rewrote the MCP section to emphasize the intended review workflow and reordered the tool list around core review actions
+- `session_history/2026-04-15_trim-mcp-tool-surface.md` — extended the session record for the README follow-up commit
 
 ## Reproduction steps
 1. Check out the base commit: `git checkout 244968615d2ffe3b407ac1d6f87af60ae394a853`
@@ -89,3 +105,5 @@ Investigated the repo-wide line-ending behavior, confirmed the large post-commit
 6. Add a root `.gitattributes` file with LF normalization for text files before committing from Windows
 7. If needed, normalize `.githooks/pre-commit` to LF line endings so Git can execute the shell hook
 8. Run verification: `uv sync`, `cd frontend && npm run build`, `uv run python scripts/test_mcp_client.py`, and `uv run batch-review --root . --skip-build --no-browser`
+9. Ask the agent to tighten the README MCP section so it explains the intended review-first workflow and tool ordering
+10. Stage only `README.md` and `session_history/2026-04-15_trim-mcp-tool-surface.md`, then create a follow-up docs commit

@@ -148,10 +148,21 @@ When the server starts, if that JSON file already exists it is **loaded into the
 
 AI agents connect via `http://localhost:<port>/mcp` (HTTP transport) or stdio (`--mcp` flag).
 
-The MCP surface is intentionally **review-first**: agents should usually start from
-`get_git_changes()`, `get_git_diff(path)`, and the comment/session tools. Repo browsing
-tools are kept minimal and are mainly there to help agents stay aligned with the same
-review context shown in the UI, not to act as a general-purpose filesystem API.
+The MCP surface is intentionally **review-first**. Batch Review is not trying to be a
+general repo browser or editor API; it is a shared review-state server for:
+
+- identifying the review scope
+- inspecting diffs and just enough file context
+- adding or updating anchored review comments
+- saving or resuming the review session
+
+A typical agent flow is:
+
+1. Call `get_git_changes()`
+2. Call `get_git_diff(path)` for files worth reviewing
+3. Use `get_file_content(path)` only when extra non-diff context is needed
+4. Add or update comments, optionally driving the shared UI with open/highlight/jump tools
+5. Save or load the review session with the review file tools
 
 ### Repo-local MCP host configuration
 
@@ -182,23 +193,23 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 
 | Tool | Description |
 |---|---|
-| `list_directory(path)` | List files / directories (tree) for review navigation |
-| `get_file_content(path)` | Read file as structured data (`content`, `line_count`, `language`, `path`) — matches the REST `/api/file-content` response |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
-| `open_file_in_ui(path, mode)` | Open a file in the browser center panel (`view` or `diff`) |
-| `highlight_in_ui(path, line_start, line_end)` | Open file and highlight a 1-based line range |
-| `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open file and highlight that anchor |
 | `add_comment(...)` | Add a review comment; shows a short notice in the UI |
 | `update_comment(comment_id, text)` | Edit comment body; UI notice |
 | `delete_comment(id)` | Delete a comment; UI notice |
 | `list_comments()` | List all in-memory comments |
-| `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
-| `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
-| *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`) |
 | `list_review_files()` | List stems of `*.json` reviews in `output_dir` |
 | `load_review_by_stem(stem)` | Replace comments from `{stem}.json`; UI notice |
 | `save_comments(output_stem?, output_dir?)` | Save JSON + Markdown report, returns paths |
+| `get_file_content(path)` | Read file content as structured data (`content`, `line_count`, `language`, `path`) when diff context alone is not enough |
+| `list_directory(path)` | Minimal repo navigation helper for hosts that want the review file tree |
+| `open_file_in_ui(path, mode)` | Open a file in the browser center panel (`view` or `diff`) |
+| `highlight_in_ui(path, line_start, line_end)` | Open a file and highlight a 1-based line range in the UI |
+| `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
+| `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
+| `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
+| *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`) |
 
 Comment **add**, **update**, **delete**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 
