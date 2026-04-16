@@ -2,6 +2,8 @@
 
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
+![Batch Review UI — file tree on the left, rendered Markdown in the centre, and AI-generated review comments on the right](docs/screenshot.png)
+
 ---
 
 ## Features
