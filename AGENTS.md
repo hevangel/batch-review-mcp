@@ -11,3 +11,9 @@
 ## UI Layout Rules
 
 - **CommentBox** (`frontend/src/components/RightPanel/CommentBox.tsx`): the `@filename:L…` reference link MUST always be the **first element** inside the card, above the textarea. Do not move it to the bottom.
+
+## Git commits
+
+- Before every `git commit`, read [`CONTRIBUTING.md`](CONTRIBUTING.md) and follow its guidelines (AI-only code policy, required `session_history/` file format, build verification, and related rules).
+- Enable repo Git hooks after clone (once per clone): `git config core.hooksPath .githooks`  
+  The `pre-commit` hook rejects commits that do not **add or modify** at least one Markdown file under `session_history/` other than `session_history/TEMPLATE.md`. Merge commits are skipped so routine merges are not blocked.
