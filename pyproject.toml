@@ -25,5 +25,16 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["backend"]
-# Include main.py at the root so the entry point script resolves correctly
+# Map repo root so the `backend` package resolves; wheel-only files below.
 sources = {"." = ""}
+
+[tool.hatch.build.targets.wheel.force-include]
+# Console script `main:cli_main` and startup helpers live at repo root.
+"main.py" = "main.py"
+# Prebuilt UI (run `npm run build` in frontend/ before `uv build`).
+"frontend/dist" = "frontend/dist"
+
+[tool.hatch.build.targets.sdist.force-include]
+# Keep sdist aligned so `pip install --no-binary` can rebuild the wheel.
+"main.py" = "main.py"
+"frontend/dist" = "frontend/dist"
