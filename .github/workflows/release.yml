@@ -1,5 +1,9 @@
-# When a version tag like v0.1.0 is pushed: build wheel/sdist + MCPB, create a GitHub
+# When a version tag like v0.1.0 is pushed: build wheel/sdist + MCPB, verify MCP registry
+# metadata (server.json identifier + fileSha256 vs Linux-built .mcpb), create a GitHub
 # Release with generated notes and attach artifacts, then optionally publish to PyPI.
+#
+# Before tagging: run workflow "MCP registry preflight (Linux MCPB hash)", update
+# server.json, commit, then tag — otherwise this workflow fails on the verify step.
 name: Release
 
 on:
@@ -45,6 +49,12 @@ jobs:
         run: |
           ls -la dist/
           sha256sum dist/*
+
+      - name: Verify server.json for MCP registry (MCPB URL + SHA-256)
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: uv run python scripts/verify_release_mcp_registry.py
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v2
