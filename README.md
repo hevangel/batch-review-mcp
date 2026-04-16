@@ -148,6 +148,11 @@ When the server starts, if that JSON file already exists it is **loaded into the
 
 AI agents connect via `http://localhost:<port>/mcp` (HTTP transport) or stdio (`--mcp` flag).
 
+The MCP surface is intentionally **review-first**: agents should usually start from
+`get_git_changes()`, `get_git_diff(path)`, and the comment/session tools. Repo browsing
+tools are kept minimal and are mainly there to help agents stay aligned with the same
+review context shown in the UI, not to act as a general-purpose filesystem API.
+
 ### Repo-local MCP host configuration
 
 This repository includes checked-in defaults so common agents can use **Batch Review** and **Playwright** together:
@@ -177,8 +182,7 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 
 | Tool | Description |
 |---|---|
-| `list_directory(path)` | List files / directories (tree) |
-| `read_file(path)` | Read file content as plain text |
+| `list_directory(path)` | List files / directories (tree) for review navigation |
 | `get_file_content(path)` | Read file as structured data (`content`, `line_count`, `language`, `path`) — matches the REST `/api/file-content` response |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |

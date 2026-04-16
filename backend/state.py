@@ -79,13 +79,28 @@ class AppState:
     # Comment helpers
     # ------------------------------------------------------------------
 
-    def build_reference(self, file_path: str, line_start: int, line_end: int) -> str:
-        """Build the @filename:L10-15 reference string."""
+    def build_reference(
+        self,
+        file_path: str,
+        line_start: int,
+        line_end: int,
+        region_x1: float | None = None,
+        region_y1: float | None = None,
+        region_x2: float | None = None,
+        region_y2: float | None = None,
+    ) -> str:
+        """Build the @filename:L10-15 or @image.png:rect(x1,y1,x2,y2) reference string."""
         rel = file_path
         try:
             rel = str(Path(file_path).relative_to(self.repo_root))
         except ValueError:
             pass
+        # Image region reference
+        if region_x1 is not None and region_y1 is not None and region_x2 is not None and region_y2 is not None:
+            return f"@{rel}:rect({int(region_x1)},{int(region_y1)},{int(region_x2)},{int(region_y2)})"
+        # No lines (whole-image comment)
+        if line_start == 0 and line_end == 0:
+            return f"@{rel}"
         if line_start == line_end:
             return f"@{rel}:L{line_start}"
         return f"@{rel}:L{line_start}-{line_end}"
@@ -97,9 +112,17 @@ class AppState:
         line_end: int,
         text: str = "",
         highlighted_text: str = "",
+        region_x1: float | None = None,
+        region_y1: float | None = None,
+        region_x2: float | None = None,
+        region_y2: float | None = None,
     ) -> Comment:
         """Create and store a new comment."""
-        reference = self.build_reference(file_path, line_start, line_end)
+        reference = self.build_reference(
+            file_path, line_start, line_end,
+            region_x1=region_x1, region_y1=region_y1,
+            region_x2=region_x2, region_y2=region_y2,
+        )
         comment = Comment(
             file_path=file_path,
             line_start=line_start,
@@ -107,6 +130,10 @@ class AppState:
             reference=reference,
             text=text,
             highlighted_text=highlighted_text,
+            region_x1=region_x1,
+            region_y1=region_y1,
+            region_x2=region_x2,
+            region_y2=region_y2,
         )
         self.comments[comment.id] = comment
         return comment
@@ -225,13 +252,19 @@ class AppState:
             lines += ["", f"## {file_path}", ""]
             for c in sorted(comments, key=lambda x: x.line_start):
                 lines.append(f"### `{c.reference}`")
-                if c.highlighted_text:
+                # Image region info
+                if c.region_x1 is not None:
+                    lines.append(
+                        f"> **Region:** ({int(c.region_x1)},{int(c.region_y1)})"
+                        f"\u2013({int(c.region_x2)},{int(c.region_y2)})"
+                    )
+                    lines.append(">")
+                elif c.highlighted_text:
                     lines.append("> **Highlighted text:**")
                     for hline in c.highlighted_text.splitlines():
                         lines.append(f"> {hline}" if hline else ">")
                     lines.append(">")
                 if c.text:
-                    # Indent each line of the comment text as a blockquote
                     for tline in c.text.splitlines():
                         lines.append(f"> {tline}" if tline else ">")
                 else:

@@ -43,6 +43,9 @@ review_comments.md
 *.suo
 *.user
 
+# Playwright MCP
+.playwright-mcp/
+
 # OS
 .DS_Store
 Thumbs.db

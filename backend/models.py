@@ -26,9 +26,13 @@ class Comment(BaseModel):
     file_path: str
     line_start: int
     line_end: int
-    reference: str  # "@filename:L10-15" style
+    reference: str  # "@filename:L10-15" or "@image.png:rect(x1,y1,x2,y2)"
     text: str = ""
     highlighted_text: str = ""
+    region_x1: Optional[float] = None
+    region_y1: Optional[float] = None
+    region_x2: Optional[float] = None
+    region_y2: Optional[float] = None
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -36,10 +40,14 @@ class Comment(BaseModel):
 
 class CreateCommentRequest(BaseModel):
     file_path: str
-    line_start: int
-    line_end: int
+    line_start: int = 0
+    line_end: int = 0
     text: str = ""
     highlighted_text: str = ""
+    region_x1: Optional[float] = None
+    region_y1: Optional[float] = None
+    region_x2: Optional[float] = None
+    region_y2: Optional[float] = None
 
 
 class SaveCommentsRequest(BaseModel):

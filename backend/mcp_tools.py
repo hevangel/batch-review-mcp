@@ -16,14 +16,15 @@ from backend.models import WsEvent
 mcp = FastMCP(
     name="Batch Review",
     instructions=(
-        "Tools for reviewing markdown files and code changes in a git repository. "
-        "List and read files (including metadata), inspect git diffs, open or close files "
-        "in the browser, highlight lines, jump to a comment's anchor, manage comments "
-        "(add, update, delete, list, load saved reviews, save), read server config, and get the "
-        "web UI URL. The MCP resource ``batch-review://server/urls`` exposes the same "
-        "connection URLs as JSON for hosts that read resources. "
-        "UI-mutating tools broadcast WebSocket events; comment mutations also show a "
-        "short notice in the browser."
+        "Review-first tools for markdown files and code changes in a git repository. "
+        "Start with git review context via get_git_changes() and get_git_diff(path), then use "
+        "structured file reads only when extra context is needed. Manage review comments "
+        "(add, update, delete, list, load saved reviews, save), drive the shared browser UI "
+        "(open, close, highlight, jump), read server config, and get the web UI URL. "
+        "Directory listing is provided only as a navigation helper, not as a general-purpose "
+        "filesystem API. The MCP resource ``batch-review://server/urls`` exposes the same "
+        "connection URLs as JSON for hosts that read resources. UI-mutating tools broadcast "
+        "WebSocket events; comment mutations also show a short notice in the browser."
     ),
 )
 
@@ -85,28 +86,6 @@ def list_directory(path: str = ".") -> list[dict]:
         return [{"error": "Path is not a directory"}]
     items = _build_tree(target, state.repo_root)
     return [item.model_dump() for item in items]
-
-
-@mcp.tool
-def read_file(path: str) -> str:
-    """Read and return the text content of a file in the repository.
-
-    Args:
-        path: Relative path to the file within the repo root.
-
-    Returns:
-        Full text content of the file.
-    """
-    state = _state()
-    try:
-        resolved = state.resolve_safe_path(path)
-    except ValueError as exc:
-        return f"Error: {exc}"
-    if not resolved.exists():
-        return "Error: File not found"
-    if resolved.is_dir():
-        return "Error: Path is a directory"
-    return resolved.read_text(encoding="utf-8", errors="replace")
 
 
 @mcp.tool
@@ -264,6 +243,10 @@ async def add_comment(
     line_end: int,
     text: str = "",
     highlighted_text: str = "",
+    region_x1: float | None = None,
+    region_y1: float | None = None,
+    region_x2: float | None = None,
+    region_y2: float | None = None,
 ) -> dict:
     """Add a review comment for a specific line range in a file.
 
@@ -273,6 +256,10 @@ async def add_comment(
         line_end: Last line number (1-based, inclusive).
         text: Review comment text.
         highlighted_text: The verbatim source text that the comment refers to.
+        region_x1: Left edge of image region in original pixels (optional, for image files).
+        region_y1: Top edge of image region in original pixels (optional, for image files).
+        region_x2: Right edge of image region in original pixels (optional, for image files).
+        region_y2: Bottom edge of image region in original pixels (optional, for image files).
 
     Returns:
         The created Comment as a dict.
@@ -284,6 +271,10 @@ async def add_comment(
         line_end=line_end,
         text=text,
         highlighted_text=highlighted_text,
+        region_x1=region_x1,
+        region_y1=region_y1,
+        region_x2=region_x2,
+        region_y2=region_y2,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     await _agent_notice(state, f"Agent added comment {comment.reference}")

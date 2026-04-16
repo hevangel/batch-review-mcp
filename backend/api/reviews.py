@@ -28,6 +28,10 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
         line_end=body.line_end,
         text=body.text,
         highlighted_text=body.highlighted_text,
+        region_x1=body.region_x1,
+        region_y1=body.region_y1,
+        region_x2=body.region_x2,
+        region_y2=body.region_y2,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     return comment

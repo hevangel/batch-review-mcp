@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import type { Comment } from "../../types";
 import { deleteComment, updateCommentText } from "../../api";
 import { useStore } from "../../store";
@@ -31,6 +31,16 @@ export default function CommentBox({
   const [deleting, setDeleting] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  /** Resize textarea to fit content, capped at 50vh. */
+  const autoResize = useCallback(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    const maxH = window.innerHeight / 3;
+    ta.style.height = `${Math.min(ta.scrollHeight, maxH)}px`;
+    ta.style.overflowY = ta.scrollHeight > maxH ? "auto" : "hidden";
+  }, []);
+
   // Auto-focus textarea when this is a newly created comment
   useEffect(() => {
     if (isNew) {
@@ -39,12 +49,26 @@ export default function CommentBox({
     }
   }, [isNew, clearNewestCommentId]);
 
+  // Sync text from prop (e.g. when a saved review is loaded) and auto-resize
+  useEffect(() => {
+    setText(comment.text);
+  }, [comment.text]);
+
+  // Auto-resize whenever text changes
+  useEffect(() => {
+    autoResize();
+  }, [text, autoResize]);
+
   const handleReferenceClick = () => {
     openFile(comment.file_path, "view");
     setActiveHighlight({
       path: comment.file_path,
       line_start: comment.line_start,
       line_end: comment.line_end,
+      region_x1: comment.region_x1,
+      region_y1: comment.region_y1,
+      region_x2: comment.region_x2,
+      region_y2: comment.region_y2,
     });
   };
 
@@ -113,15 +137,15 @@ export default function CommentBox({
         </button>
       </div>
 
-      {/* Comment textarea */}
+      {/* Comment textarea – auto-resizes up to 50vh */}
       <textarea
         ref={textareaRef}
         value={text}
         onChange={handleTextChange}
         onBlur={handleBlur}
         placeholder="Add your review comment…"
-        rows={3}
-        className="w-full bg-gray-700 text-gray-100 text-sm placeholder-gray-500 rounded px-2 py-1.5 resize-y border border-gray-600 focus:outline-none focus:border-blue-500"
+        rows={1}
+        className="w-full bg-gray-700 text-gray-100 text-sm placeholder-gray-500 rounded px-2 py-1.5 resize-none border border-gray-600 focus:outline-none focus:border-blue-500 overflow-hidden"
       />
 
       {saving && (

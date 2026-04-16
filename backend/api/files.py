@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
 
 from backend.models import FileContentResponse, FileInfo
 from backend.state import get_state
@@ -57,6 +58,19 @@ _LANG_MAP: dict[str, str] = {
     ".svelte": "html",
 }
 
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico"}
+
+_IMAGE_MIME: dict[str, str] = {
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".gif": "image/gif",
+    ".webp": "image/webp",
+    ".bmp": "image/bmp",
+    ".svg": "image/svg+xml",
+    ".ico": "image/x-icon",
+}
+
 _IGNORE_DIRS = {
     ".git",
     "node_modules",
@@ -79,6 +93,8 @@ def _detect_language(path: str) -> str:
     name = Path(path).name.lower()
     if name == "dockerfile":
         return "dockerfile"
+    if suffix in _IMAGE_EXTENSIONS:
+        return "image"
     return _LANG_MAP.get(suffix, "plaintext")
 
 
@@ -171,3 +187,20 @@ def get_file_content(path: str = Query(...)) -> FileContentResponse:
         raise HTTPException(status_code=404, detail="File not found")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}")
+
+
+@router.get("/image-content")
+def get_image_content(path: str = Query(...)):
+    """Return the raw bytes of an image file within the repo."""
+    state = get_state()
+    try:
+        resolved = state.resolve_safe_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    suffix = resolved.suffix.lower()
+    if suffix not in _IMAGE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not an image file")
+    media_type = _IMAGE_MIME.get(suffix, "application/octet-stream")
+    return FileResponse(str(resolved), media_type=media_type)

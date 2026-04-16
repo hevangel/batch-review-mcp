@@ -5,6 +5,7 @@ import type { DiffResponse, FileContentResponse } from "../../types";
 import MarkdownViewer from "./MarkdownViewer";
 import CodeViewer from "./CodeViewer";
 import DiffViewer from "./DiffViewer";
+import ImageViewer from "./ImageViewer";
 
 export default function CenterPanel() {
   const openFilePath = useStore((s) => s.openFilePath);
@@ -26,11 +27,16 @@ export default function CenterPanel() {
     setFileData(null);
     setDiffData(null);
 
+    const ext = openFilePath.split(".").pop()?.toLowerCase() ?? "";
     if (openMode === "diff") {
       getGitDiff(openFilePath)
         .then(setDiffData)
         .catch((e: Error) => setError(e.message))
         .finally(() => setLoading(false));
+    } else if (extToLang(ext) === "image") {
+      // Images are served via a dedicated endpoint; no text content to fetch
+      setFileData({ content: "", line_count: 0, language: "image", path: openFilePath });
+      setLoading(false);
     } else {
       getFileContent(openFilePath)
         .then(setFileData)
@@ -72,6 +78,9 @@ export default function CenterPanel() {
 
   // --- View mode ---
   if (fileData) {
+    if (fileData.language === "image") {
+      return <ImageViewer filePath={openFilePath} />;
+    }
     if (fileData.language === "markdown") {
       return <MarkdownViewer content={fileData.content} filePath={openFilePath} />;
     }
@@ -107,6 +116,14 @@ function extToLang(ext: string): string {
     rb: "ruby",
     cs: "csharp",
     sql: "sql",
+    png: "image",
+    jpg: "image",
+    jpeg: "image",
+    gif: "image",
+    webp: "image",
+    bmp: "image",
+    svg: "image",
+    ico: "image",
   };
   return map[ext] ?? "plaintext";
 }

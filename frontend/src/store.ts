@@ -25,6 +25,10 @@ interface AppStore {
   selection: SelectionRange | null;
   setSelection: (sel: SelectionRange | null) => void;
 
+  // Image region selection (for creating image comments)
+  imageRegion: { x1: number; y1: number; x2: number; y2: number } | null;
+  setImageRegion: (r: { x1: number; y1: number; x2: number; y2: number } | null) => void;
+
   // Active highlight (from clicking a comment)
   activeHighlight: HighlightPayload | null;
   setActiveHighlight: (h: HighlightPayload | null) => void;
@@ -54,11 +58,14 @@ export const useStore = create<AppStore>((set) => ({
   openFilePath: null,
   openMode: "view",
   openFile: (path, mode = "view") =>
-    set({ openFilePath: path, openMode: mode, selection: null }),
-  closeFile: () => set({ openFilePath: null, selection: null }),
+    set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null }),
+  closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null }),
 
   selection: null,
   setSelection: (sel) => set({ selection: sel }),
+
+  imageRegion: null,
+  setImageRegion: (r) => set({ imageRegion: r }),
 
   activeHighlight: null,
   setActiveHighlight: (h) => set({ activeHighlight: h }),

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { FileInfo } from "../../types";
 import { useStore } from "../../store";
 
@@ -30,6 +30,14 @@ const FILE_ICONS: Record<string, string> = {
   sql: "🗄️",
   dockerfile: "🐳",
   tf: "🏗️",
+  png: "🖼️",
+  jpg: "🖼️",
+  jpeg: "🖼️",
+  gif: "🖼️",
+  webp: "🖼️",
+  bmp: "🖼️",
+  svg: "🖼️",
+  ico: "🖼️",
 };
 
 function fileIcon(name: string): string {
@@ -38,18 +46,31 @@ function fileIcon(name: string): string {
   return FILE_ICONS[ext] ?? "📄";
 }
 
+/** Collect paths of every directory node in the tree. */
+function collectDirPaths(nodes: FileInfo[], out: Set<string> = new Set()): Set<string> {
+  for (const n of nodes) {
+    if (n.is_dir) {
+      out.add(n.path);
+      if (n.children) collectDirPaths(n.children, out);
+    }
+  }
+  return out;
+}
+
 interface TreeNodeProps {
   node: FileInfo;
   depth: number;
+  expandedPaths: Set<string>;
+  togglePath: (path: string) => void;
 }
 
-function TreeNode({ node, depth }: TreeNodeProps) {
-  const [expanded, setExpanded] = useState(depth < 1);
+function TreeNode({ node, depth, expandedPaths, togglePath }: TreeNodeProps) {
   const openFile = useStore((s) => s.openFile);
+  const expanded = node.is_dir && expandedPaths.has(node.path);
 
-  const handleClick = async () => {
+  const handleClick = () => {
     if (node.is_dir) {
-      setExpanded((e) => !e);
+      togglePath(node.path);
     } else {
       openFile(node.path, "view");
     }
@@ -74,10 +95,16 @@ function TreeNode({ node, depth }: TreeNodeProps) {
         {node.is_dir && <span className="mr-1">📁</span>}
         <span className="truncate">{node.name}</span>
       </button>
-      {node.is_dir && expanded && node.children && (
+      {expanded && node.children && (
         <div>
           {node.children.map((child) => (
-            <TreeNode key={child.path} node={child} depth={depth + 1} />
+            <TreeNode
+              key={child.path}
+              node={child}
+              depth={depth + 1}
+              expandedPaths={expandedPaths}
+              togglePath={togglePath}
+            />
           ))}
         </div>
       )}
@@ -92,6 +119,22 @@ interface FileExplorerProps {
 }
 
 export default function FileExplorer({ files, loading, error }: FileExplorerProps) {
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
+
+  const allDirPaths = useMemo(() => collectDirPaths(files), [files]);
+
+  const togglePath = useCallback((path: string) => {
+    setExpandedPaths((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      return next;
+    });
+  }, []);
+
+  const expandAll = () => setExpandedPaths(new Set(allDirPaths));
+  const collapseAll = () => setExpandedPaths(new Set());
+
   if (loading) {
     return (
       <div className="p-3 text-gray-400 text-sm">Loading files…</div>
@@ -108,10 +151,34 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
     );
   }
   return (
-    <div className="monaco-like-scrollbar overflow-y-auto h-full py-1">
-      {files.map((f) => (
-        <TreeNode key={f.path} node={f} depth={0} />
-      ))}
+    <div className="flex flex-col h-full">
+      <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-700">
+        <button
+          onClick={expandAll}
+          className="text-xs text-gray-400 hover:text-gray-200 px-1.5 py-0.5 rounded hover:bg-gray-700"
+          title="Expand all folders"
+        >
+          Expand All
+        </button>
+        <button
+          onClick={collapseAll}
+          className="text-xs text-gray-400 hover:text-gray-200 px-1.5 py-0.5 rounded hover:bg-gray-700"
+          title="Collapse all folders"
+        >
+          Collapse All
+        </button>
+      </div>
+      <div className="monaco-like-scrollbar overflow-y-auto flex-1 py-1">
+        {files.map((f) => (
+          <TreeNode
+            key={f.path}
+            node={f}
+            depth={0}
+            expandedPaths={expandedPaths}
+            togglePath={togglePath}
+          />
+        ))}
+      </div>
     </div>
   );
 }

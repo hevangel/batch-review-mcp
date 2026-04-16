@@ -19,10 +19,14 @@ export interface Comment {
   file_path: string;
   line_start: number;
   line_end: number;
-  /** "@filename:L10-15" style reference */
+  /** "@filename:L10-15" or "@image.png:rect(x1,y1,x2,y2)" style reference */
   reference: string;
   text: string;
   highlighted_text: string;
+  region_x1?: number | null;
+  region_y1?: number | null;
+  region_x2?: number | null;
+  region_y2?: number | null;
   created_at: string;
 }
 
@@ -66,6 +70,10 @@ export interface HighlightPayload {
   path: string;
   line_start: number;
   line_end: number;
+  region_x1?: number | null;
+  region_y1?: number | null;
+  region_x2?: number | null;
+  region_y2?: number | null;
 }
 
 export interface DeleteCommentPayload {

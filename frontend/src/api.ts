@@ -52,13 +52,24 @@ export function createComment(
   line_start: number,
   line_end: number,
   text = "",
-  highlighted_text = ""
+  highlighted_text = "",
+  region?: { x1: number; y1: number; x2: number; y2: number },
 ): Promise<Comment> {
   return json<Comment>("/api/comments", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ file_path, line_start, line_end, text, highlighted_text }),
+    body: JSON.stringify({
+      file_path, line_start, line_end, text, highlighted_text,
+      ...(region ? {
+        region_x1: region.x1, region_y1: region.y1,
+        region_x2: region.x2, region_y2: region.y2,
+      } : {}),
+    }),
   });
+}
+
+export function imageUrl(path: string): string {
+  return `${BASE}/api/image-content?path=${encodeURIComponent(path)}`;
 }
 
 export function updateCommentText(id: string, text: string): Promise<Comment> {
