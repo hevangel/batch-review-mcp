@@ -1,10 +1,13 @@
-"""Verify server.json MCPB metadata matches this tag and the built .mcpb on disk.
+"""Verify server.json MCPB metadata matches the release tag and built .mcpb on disk.
 
-Intended for GitHub Actions on tag builds (Linux). Requires env GITHUB_REF_NAME (e.g. v0.1.0).
-Exits non-zero if the registry would reject the release (wrong URL, version skew, or SHA mismatch).
+Intended for GitHub Actions on tag builds (Linux). By default the script reads the tag
+from env ``GITHUB_REF_NAME`` (e.g. ``v0.1.0``), but manual recovery workflows may pass
+``--tag`` explicitly. Exits non-zero if the registry would reject the release (wrong URL,
+version skew, or SHA mismatch).
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -22,8 +25,25 @@ def _read_pyproject_version(pyproject: Path) -> str:
     return match.group(1)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Repository root containing pyproject.toml, server.json, and dist/.",
+    )
+    parser.add_argument(
+        "--tag",
+        default="",
+        help="Version tag to verify (defaults to env GITHUB_REF_NAME).",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    ref_name = os.environ.get("GITHUB_REF_NAME", "").strip()
+    args = _parse_args()
+    ref_name = (args.tag or os.environ.get("GITHUB_REF_NAME", "")).strip()
     if not ref_name.startswith("v"):
         print(
             "verify: GITHUB_REF_NAME must be a version tag like v0.1.0 (got %r)" % (ref_name,),
@@ -32,7 +52,7 @@ def main() -> None:
         sys.exit(1)
 
     tag_version = ref_name[1:]
-    repo_root = Path(__file__).resolve().parents[1]
+    repo_root = (args.repo_root or Path(__file__).resolve().parents[1]).resolve()
     py_ver = _read_pyproject_version(repo_root / "pyproject.toml")
     if py_ver != tag_version:
         print(

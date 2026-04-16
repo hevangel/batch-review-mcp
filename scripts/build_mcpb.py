@@ -1,9 +1,12 @@
 """Stage a minimal tree and pack batch-review-mcp as an MCP Bundle (.mcpb).
 
 Prints progress to stdout. Requires Node (npx) and a built frontend (frontend/dist/).
+Rewrites the packed archive deterministically so repeated builds of the same source tree
+produce identical bytes.
 """
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import re
@@ -11,6 +14,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+import zipfile
 
 
 def _npm_cmd() -> str:
@@ -34,7 +38,11 @@ def _read_project_version(pyproject: Path) -> str:
 def _copy_tree(src: Path, dst: Path) -> None:
     if dst.exists():
         shutil.rmtree(dst)
-    shutil.copytree(src, dst)
+    shutil.copytree(
+        src,
+        dst,
+        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "*.pyo"),
+    )
 
 
 def _copy_file(src: Path, dst: Path) -> None:
@@ -42,8 +50,44 @@ def _copy_file(src: Path, dst: Path) -> None:
     shutil.copy2(src, dst)
 
 
+def _parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--repo-root",
+        type=Path,
+        default=None,
+        help="Repository root to package (defaults to the current repository).",
+    )
+    return parser.parse_args()
+
+
+def _rewrite_mcpb_deterministically(path: Path) -> None:
+    fixed_dt = (2024, 1, 1, 0, 0, 0)
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+
+    with zipfile.ZipFile(path, "r") as src, zipfile.ZipFile(
+        temp_path,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        compresslevel=9,
+    ) as dst:
+        for info in sorted(src.infolist(), key=lambda item: item.filename):
+            data = src.read(info.filename)
+            rewritten = zipfile.ZipInfo(filename=info.filename, date_time=fixed_dt)
+            rewritten.comment = b""
+            rewritten.extra = b""
+            rewritten.create_system = info.create_system
+            rewritten.external_attr = info.external_attr
+            rewritten.internal_attr = info.internal_attr
+            rewritten.compress_type = info.compress_type
+            dst.writestr(rewritten, data, compress_type=info.compress_type)
+
+    temp_path.replace(path)
+
+
 def main() -> None:
-    repo_root = Path(__file__).resolve().parents[1]
+    args = _parse_args()
+    repo_root = (args.repo_root or Path(__file__).resolve().parents[1]).resolve()
     pyproject = repo_root / "pyproject.toml"
     version = _read_project_version(pyproject)
     print("Progress: read version", version, "from pyproject.toml")
@@ -91,6 +135,9 @@ def main() -> None:
 
     print("Progress: packing", out_mcpb.name)
     _mcpb_cli(["pack", str(stage), str(out_mcpb)], cwd=repo_root)
+
+    print("Progress: rewriting archive deterministically")
+    _rewrite_mcpb_deterministically(out_mcpb)
 
     digest = hashlib.sha256(out_mcpb.read_bytes()).hexdigest()
     print("Progress: SHA-256", digest)

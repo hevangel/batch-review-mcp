@@ -99,6 +99,10 @@ rerun it manually from **Actions** via `workflow_dispatch` by providing `release
 (for example `v0.2.0`). That manual path checks out the tag you name, so you can recover
 the release without rebuilding from a different code revision.
 
+`scripts/build_mcpb.py` rewrites the packed archive deterministically after `mcpb pack`, so
+the Linux SHA from preflight should match the Linux SHA seen again in the Release workflow
+for the same source tree.
+
 ### CLI flags
 
 | Flag | Default | Description |
