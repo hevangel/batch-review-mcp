@@ -108,7 +108,7 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
     );
   }
   return (
-    <div className="overflow-y-auto h-full py-1">
+    <div className="monaco-like-scrollbar overflow-y-auto h-full py-1">
       {files.map((f) => (
         <TreeNode key={f.path} node={f} depth={0} />
       ))}

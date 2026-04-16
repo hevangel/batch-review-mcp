@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
@@ -76,20 +76,25 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const addCommentToStore = useStore((s) => s.addComment);
   const activeHighlight = useStore((s) => s.activeHighlight);
 
-  // Scroll / highlight when activeHighlight changes
-  useEffect(() => {
-    if (!activeHighlight || activeHighlight.path !== filePath) return;
+  // Scroll / highlight when activeHighlight or rendered markdown changes.
+  // useLayoutEffect so DOM from ReactMarkdown is present (mirrors CodeViewer onMount fix).
+  useLayoutEffect(() => {
+    if (!activeHighlight || activeHighlight.path !== filePath) {
+      return;
+    }
     const container = containerRef.current;
-    if (!container) return;
+    if (!container) {
+      return;
+    }
     const target = container.querySelector(
-      `[data-line-start="${activeHighlight.line_start}"]`
+      `[data-line-start="${activeHighlight.line_start}"]`,
     ) as HTMLElement | null;
     if (target) {
       target.scrollIntoView({ behavior: "smooth", block: "center" });
-      target.classList.add("bg-yellow-900/40");
-      setTimeout(() => target.classList.remove("bg-yellow-900/40"), 2000);
+      target.classList.add("markdown-monaco-jump-highlight");
+      setTimeout(() => target.classList.remove("markdown-monaco-jump-highlight"), 2000);
     }
-  }, [activeHighlight, filePath]);
+  }, [activeHighlight, filePath, content]);
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
@@ -160,10 +165,10 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
         </button>
       </div>
 
-      {/* Scrollable markdown body */}
+      {/* Scrollable markdown body — colors match Monaco vs-dark (see index.css) */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-y-auto px-8 py-6 text-gray-100 bg-gray-900"
+        className="markdown-monaco-surface monaco-like-scrollbar flex-1 overflow-y-auto px-8 py-6 text-[13px] leading-normal"
         onMouseUp={handleMouseUp}
       >
         <div className="prose prose-invert max-w-none">

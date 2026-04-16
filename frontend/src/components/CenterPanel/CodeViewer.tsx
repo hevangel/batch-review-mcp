@@ -10,37 +10,56 @@ interface CodeViewerProps {
   filePath: string;
 }
 
+function applyCodeHighlight(
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  filePath: string,
+  highlight: { path: string; line_start: number; line_end: number } | null,
+) {
+  if (!highlight || highlight.path !== filePath) {
+    return;
+  }
+  editor.revealLinesInCenter(highlight.line_start, highlight.line_end);
+  editor.setSelection({
+    startLineNumber: highlight.line_start,
+    startColumn: 1,
+    endLineNumber: highlight.line_end,
+    endColumn: 1,
+  });
+}
+
 export default function CodeViewer({ content, language, filePath }: CodeViewerProps) {
   const editorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const addCommentToStore = useStore((s) => s.addComment);
   const setSelection = useStore((s) => s.setSelection);
   const activeHighlight = useStore((s) => s.activeHighlight);
 
-  const handleMount: OnMount = useCallback((editor) => {
-    editorRef.current = editor;
+  const handleMount: OnMount = useCallback(
+    (editor) => {
+      editorRef.current = editor;
 
-    editor.onDidChangeCursorSelection((e) => {
-      const start = e.selection.startLineNumber;
-      const end = e.selection.endLineNumber;
-      if (start !== end || e.selection.startColumn !== e.selection.endColumn) {
-        setSelection({ line_start: start, line_end: end });
-      } else {
-        setSelection(null);
-      }
-    });
-  }, [setSelection]);
+      editor.onDidChangeCursorSelection((e) => {
+        const start = e.selection.startLineNumber;
+        const end = e.selection.endLineNumber;
+        if (start !== end || e.selection.startColumn !== e.selection.endColumn) {
+          setSelection({ line_start: start, line_end: end });
+        } else {
+          setSelection(null);
+        }
+      });
 
-  // Highlight when activeHighlight changes
+      // First click: highlight effect often runs before onMount — apply pending highlight now
+      applyCodeHighlight(editor, filePath, useStore.getState().activeHighlight);
+    },
+    [filePath, setSelection],
+  );
+
+  // Highlight when activeHighlight changes (editor already mounted)
   useEffect(() => {
     const editor = editorRef.current;
-    if (!editor || !activeHighlight || activeHighlight.path !== filePath) return;
-    editor.revealLinesInCenter(activeHighlight.line_start, activeHighlight.line_end);
-    editor.setSelection({
-      startLineNumber: activeHighlight.line_start,
-      startColumn: 1,
-      endLineNumber: activeHighlight.line_end,
-      endColumn: 1,
-    });
+    if (!editor) {
+      return;
+    }
+    applyCodeHighlight(editor, filePath, activeHighlight);
   }, [activeHighlight, filePath]);
 
   const handleAddComment = useCallback(async () => {

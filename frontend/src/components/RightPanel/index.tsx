@@ -217,7 +217,7 @@ export default function RightPanel() {
       </div>
 
       {/* Comment list */}
-      <div ref={listRef} className="flex-1 overflow-y-auto p-3 flex flex-col gap-3">
+      <div ref={listRef} className="monaco-like-scrollbar flex-1 overflow-y-auto p-3 flex flex-col gap-3">
         {visible.length === 0 ? (
           <div className="text-gray-500 text-sm text-center mt-8">
             {comments.length === 0 ? (
@@ -330,7 +330,7 @@ export default function RightPanel() {
             minWidth: menuRect.width,
             zIndex: 9999,
           }}
-          className="bg-gray-900 border border-gray-600 rounded shadow-2xl max-h-60 overflow-y-auto"
+          className="monaco-like-scrollbar bg-gray-900 border border-gray-600 rounded shadow-2xl max-h-60 overflow-y-auto"
           onKeyDown={handleLoadMenuKey}
         >
           {reviewFiles.length === 0 ? (

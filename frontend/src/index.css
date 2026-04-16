@@ -1,2 +1,87 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
+
+/*
+ * Markdown center panel — align with Monaco standalone "vs-dark"
+ * (editor.background #1E1E1E, editor.foreground #D4D4D4, editor.selectionBackground #264F78)
+ */
+.markdown-monaco-surface {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+}
+
+.markdown-monaco-surface ::selection {
+  background-color: #264f78;
+  color: #d4d4d4;
+}
+
+.markdown-monaco-surface ::-moz-selection {
+  background-color: #264f78;
+  color: #d4d4d4;
+}
+
+/* prose-invert: retarget tokens to Monaco editor colors */
+.markdown-monaco-surface :where(.prose-invert) {
+  --tw-prose-invert-body: #d4d4d4;
+  --tw-prose-invert-headings: #d4d4d4;
+  --tw-prose-invert-lead: #d4d4d4;
+  --tw-prose-invert-links: #d4d4d4;
+  --tw-prose-invert-bold: #d4d4d4;
+  --tw-prose-invert-counters: #858585;
+  --tw-prose-invert-bullets: #858585;
+  --tw-prose-invert-hr: #3e3e42;
+  --tw-prose-invert-quotes: #d4d4d4;
+  --tw-prose-invert-quote-borders: #3e3e42;
+  --tw-prose-invert-captions: #858585;
+  --tw-prose-invert-kbd: #d4d4d4;
+  --tw-prose-invert-kbd-shadows: rgb(255 255 255 / 12%);
+  --tw-prose-invert-code: #d4d4d4;
+  --tw-prose-invert-pre-code: #d4d4d4;
+  --tw-prose-invert-pre-bg: #1e1e1e;
+  --tw-prose-invert-th-borders: #3e3e42;
+  --tw-prose-invert-td-borders: #3e3e42;
+}
+
+.markdown-monaco-surface .prose-invert :where(a):hover {
+  color: #d4d4d4;
+}
+
+/* Inline code: same tone as editor text, not bright white */
+.markdown-monaco-surface .prose-invert :where(code):not(:where(pre *)) {
+  font-weight: 400;
+}
+
+/* Brief jump-from-comment flash — subtle line emphasis on editor bg */
+.markdown-monaco-jump-highlight {
+  background-color: rgb(255 255 255 / 8%);
+}
+
+/*
+ * Scrollbars — match Monaco / VS Code defaults (scrollbarSlider.* in monaco-editor miscColors.js;
+ * vertical bar width matches editor.scrollbar.verticalScrollbarSize default 14).
+ */
+.monaco-like-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(121 121 121 / 0.4) transparent;
+}
+
+.monaco-like-scrollbar::-webkit-scrollbar {
+  width: 14px;
+  height: 14px;
+}
+
+.monaco-like-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.monaco-like-scrollbar::-webkit-scrollbar-thumb {
+  background-color: rgb(121 121 121 / 0.4);
+}
+
+.monaco-like-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(100 100 100 / 0.7);
+}
+
+.monaco-like-scrollbar::-webkit-scrollbar-thumb:active {
+  background-color: rgb(191 191 191 / 0.4);
+}

@@ -67,7 +67,7 @@ export default function CenterPanel() {
   if (openMode === "diff" && diffData) {
     const ext = openFilePath.split(".").pop()?.toLowerCase() ?? "";
     const lang = fileData?.language ?? extToLang(ext);
-    return <DiffViewer diff={diffData} language={lang} />;
+    return <DiffViewer diff={diffData} language={lang} filePath={openFilePath} />;
   }
 
   // --- View mode ---

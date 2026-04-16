@@ -65,7 +65,7 @@ export default function GitChanges({ changes, loading, error }: GitChangesProps)
   }
 
   return (
-    <div className="overflow-y-auto h-full py-1">
+    <div className="monaco-like-scrollbar overflow-y-auto h-full py-1">
       {changes.map((c) => (
         <button
           key={c.path}
