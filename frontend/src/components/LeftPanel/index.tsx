@@ -31,17 +31,30 @@ export default function LeftPanel() {
 
   const handleTabChange = (tab: LeftTab) => {
     setActiveTab(tab);
-    if (tab === "git" && changes.length === 0 && !changesLoading) {
-      setChangesLoading(true);
-      getGitChanges()
-        .then((data) => {
+  };
+
+  // Load git changes whenever the Git tab is active (covers MCP set_left_panel_tab).
+  useEffect(() => {
+    if (activeTab !== "git") return;
+    let cancelled = false;
+    setChangesLoading(true);
+    getGitChanges()
+      .then((data) => {
+        if (!cancelled) {
           setChanges(data);
           setChangesError(null);
-        })
-        .catch((e: Error) => setChangesError(e.message))
-        .finally(() => setChangesLoading(false));
-    }
-  };
+        }
+      })
+      .catch((e: Error) => {
+        if (!cancelled) setChangesError(e.message);
+      })
+      .finally(() => {
+        if (!cancelled) setChangesLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeTab]);
 
   const refreshFiles = () => {
     setFilesLoading(true);

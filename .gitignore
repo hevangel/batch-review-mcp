@@ -33,9 +33,13 @@ frontend/dist/
 review_comments.json
 review_comments.md
 
-# IDEs
-.vscode/
+# IDEs — keep shared Copilot MCP config; ignore other VS Code workspace files
+.vscode/*
+!.vscode/mcp.json
 .idea/
+
+# Claude Code local overrides (do not commit)
+.claude/
 *.suo
 *.user
 

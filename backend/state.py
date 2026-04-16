@@ -30,6 +30,8 @@ class AppState:
         self.output_dir: Path = (output_dir or self.repo_root / "logs" / "batch_review").resolve()
         self.comments: dict[str, Comment] = {}
         self.ws_connections: set[WebSocket] = set()
+        #: Base URL of the web UI (``http://host:port``), set when the HTTP server binds.
+        self.web_app_url: str | None = None
 
     # ------------------------------------------------------------------
     # Path helpers
@@ -51,6 +53,10 @@ class AppState:
                 f"Path '{rel_or_abs}' escapes the repository root."
             )
         return resolved
+
+    def set_web_app_url(self, url: str) -> None:
+        """Record the public base URL of the FastAPI app (no trailing slash)."""
+        self.web_app_url = url.rstrip("/")
 
     # ------------------------------------------------------------------
     # WebSocket broadcasting
@@ -111,6 +117,84 @@ class AppState:
             del self.comments[comment_id]
             return True
         return False
+
+    def update_comment_text(self, comment_id: str, text: str) -> Comment | None:
+        """Set comment text. Returns the comment if it existed."""
+        comment = self.comments.get(comment_id)
+        if comment is None:
+            return None
+        comment.text = text
+        return comment
+
+    def list_review_stems(self) -> list[str]:
+        """Basenames (without .json) of saved review files in output_dir."""
+        return sorted(p.stem for p in self.output_dir.glob("*.json") if p.is_file())
+
+    def load_review_from_stem(self, stem: str) -> list[Comment]:
+        """Replace all comments with contents of ``{stem}.json`` under output_dir.
+
+        Raises:
+            ValueError: empty/invalid stem.
+            FileNotFoundError: JSON file missing.
+        """
+        if not stem:
+            raise ValueError("stem is required")
+        if "/" in stem or "\\" in stem or ".." in stem:
+            raise ValueError("Invalid stem")
+        json_path = self.output_dir / f"{stem}.json"
+        if not json_path.exists():
+            raise FileNotFoundError(f"Review file '{stem}.json' not found")
+        data = json.loads(json_path.read_text(encoding="utf-8"))
+        self.comments.clear()
+        loaded: list[Comment] = []
+        for item in data:
+            c = Comment(**item)
+            self.comments[c.id] = c
+            loaded.append(c)
+        return loaded
+
+    def load_initial_review_json_if_present(self) -> int:
+        """If ``{output_stem}.json`` exists under ``output_dir``, load it into memory.
+
+        Called once at process startup. Invalid files are skipped with a warning.
+
+        Returns:
+            Number of comments loaded, or ``0`` if the file is missing or unusable.
+        """
+        json_path = self.output_dir / f"{self.output_stem}.json"
+        if not json_path.is_file():
+            return 0
+        try:
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning("Could not read review JSON %s: %s", json_path, exc)
+            return 0
+        if not isinstance(data, list):
+            logger.warning(
+                "Existing review file %s is not a JSON array; skipping auto-load",
+                json_path.name,
+            )
+            return 0
+        parsed: dict[str, Comment] = {}
+        try:
+            for item in data:
+                c = Comment(**item)
+                parsed[c.id] = c
+        except Exception as exc:
+            logger.warning(
+                "Existing review file %s has invalid entries; skipping auto-load: %s",
+                json_path.name,
+                exc,
+            )
+            return 0
+        self.comments.clear()
+        self.comments.update(parsed)
+        logger.info(
+            "Loaded %d comment(s) from existing %s",
+            len(self.comments),
+            json_path.name,
+        )
+        return len(self.comments)
 
     def save_to_markdown(self, output_path: str | None = None) -> str:
         """Persist comments to a Markdown report and return the path."""
@@ -204,4 +288,5 @@ def init_state(
 ) -> AppState:
     global _state
     _state = AppState(repo_root, output_stem=output_stem, output_dir=output_dir)
+    _state.load_initial_review_json_if_present()
     return _state

@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "batch-review": {
+      "command": "uv",
+      "args": [
+        "run",
+        "batch-review",
+        "--mcp",
+        "--root",
+        ".",
+        "--skip-build"
+      ],
+      "cwd": ".",
+      "timeout": 120000
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "timeout": 120000
+    }
+  }
+}

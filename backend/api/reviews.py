@@ -1,9 +1,6 @@
 """Review comments REST endpoints."""
 from __future__ import annotations
 
-import json as _json
-from pathlib import Path
-
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
 
@@ -44,7 +41,8 @@ async def update_comment(comment_id: str, body: dict) -> Comment:
     if comment is None:
         raise HTTPException(status_code=404, detail="Comment not found")
     if "text" in body:
-        comment.text = body["text"]
+        state.update_comment_text(comment_id, body["text"])
+        comment = state.comments[comment_id]
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     return comment
 
@@ -106,21 +104,22 @@ async def bulk_load_comments(body: BulkLoadRequest) -> list[Comment]:
 
 @util_router.get("/config")
 def get_config() -> JSONResponse:
-    """Return the current server configuration (output_stem, output_dir)."""
+    """Return the current server configuration (output_stem, output_dir, web_ui_url)."""
     state = get_state()
-    return JSONResponse({"output_stem": state.output_stem, "output_dir": str(state.output_dir)})
+    return JSONResponse(
+        {
+            "output_stem": state.output_stem,
+            "output_dir": str(state.output_dir),
+            "web_ui_url": state.web_app_url,
+        }
+    )
 
 
 @util_router.get("/review-files")
 def list_review_files() -> JSONResponse:
     """List stems of saved review JSON files in output_dir."""
     state = get_state()
-    stems = [
-        p.stem
-        for p in sorted(state.output_dir.glob("*.json"))
-        if p.is_file()
-    ]
-    return JSONResponse(stems)
+    return JSONResponse(state.list_review_stems())
 
 
 @util_router.post("/comments/load")
@@ -128,24 +127,14 @@ async def load_review_by_stem(body: dict) -> JSONResponse:
     """Load comments from a saved JSON file by stem name, replacing current comments."""
     state = get_state()
     stem = body.get("stem", "")
-    if not stem:
-        raise HTTPException(status_code=400, detail="stem is required")
-    # Validate: stem must not contain path separators
-    if "/" in stem or "\\" in stem or ".." in stem:
-        raise HTTPException(status_code=400, detail="Invalid stem")
-    json_path = state.output_dir / f"{stem}.json"
-    if not json_path.exists():
-        raise HTTPException(status_code=404, detail=f"Review file '{stem}.json' not found")
     try:
-        data = _json.loads(json_path.read_text(encoding="utf-8"))
+        loaded = state.load_review_from_stem(stem)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}")
-    state.comments.clear()
-    loaded: list[Comment] = []
-    for item in data:
-        c = Comment(**item)
-        state.comments[c.id] = c
-        loaded.append(c)
+        raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}") from exc
     await state.broadcast(
         WsEvent(
             type="refresh_comments",

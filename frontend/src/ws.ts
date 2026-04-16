@@ -1,8 +1,10 @@
 import { useEffect, useRef } from "react";
 import type {
+  AgentNoticePayload,
   Comment,
   DeleteCommentPayload,
   HighlightPayload,
+  LeftTab,
   OpenFilePayload,
   WsEvent,
 } from "./types";
@@ -70,6 +72,24 @@ export function useWebSocket(): void {
           case "refresh_files": {
             // Server signals a file tree update — bump version to re-fetch
             store.bumpFilesVersion();
+            break;
+          }
+          case "close_file": {
+            store.closeFile();
+            break;
+          }
+          case "set_left_tab": {
+            const tab = (evt.payload as { tab: LeftTab }).tab;
+            if (tab === "files" || tab === "git") {
+              store.setActiveTab(tab);
+            }
+            break;
+          }
+          case "agent_notice": {
+            const n = evt.payload as AgentNoticePayload;
+            if (n?.message) {
+              store.setAgentNotice(n.message);
+            }
             break;
           }
         }

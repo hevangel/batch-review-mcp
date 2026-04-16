@@ -1,0 +1,11 @@
+# OpenAI Codex CLI — project MCP servers (stdio).
+# Loaded when this directory is trusted. Paths are relative to the repo root
+# (parent of `.codex/`). Requires `uv` on PATH and dependencies (`uv sync`).
+
+[mcp_servers.batch-review]
+command = "uv"
+args = ["run", "batch-review", "--mcp", "--root", ".", "--skip-build"]
+
+[mcp_servers.playwright]
+command = "npx"
+args = ["-y", "@playwright/mcp@latest"]

@@ -13,8 +13,9 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click any changed file to view an inline red/green unified diff |
 | **Structured comments** | Each comment captures `@filename:L10-15` line references automatically |
-| **AI collaboration** | MCP server exposes 10 tools so AI agents can review alongside humans — UI updates live |
+| **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
+| **Resume session** | On startup, if `<output-dir>/<output>.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
 
 ---
@@ -40,7 +41,7 @@ The first run will automatically build the React frontend if `frontend/dist/` do
 
 ## Usage
 
-### Standalone mode (opens browser)
+### Standalone mode (browser opens by default)
 
 ```bash
 # Review the current directory
@@ -59,13 +60,13 @@ uv run batch-review --root /path/to/repo --output review --output-dir /tmp/revie
 
 The server auto-selects a free port in the 9000–9999 range if the default port is already in use.
 
-### MCP stdio mode (Claude Desktop / Cursor / any MCP client)
+### MCP stdio mode (Claude Desktop / Cursor / any MCP client; browser opens by default)
 
 ```bash
 uv run batch-review --mcp --root /path/to/repo
 ```
 
-The HTTP server starts in a background thread (so the browser UI remains accessible) while the MCP stdio transport runs in the main thread.
+The HTTP server starts in a background thread (so the browser UI remains accessible), your default browser opens to the app URL (same as standalone mode; use `--no-browser` to skip), and the MCP stdio transport runs in the main thread.
 
 **Claude Desktop config** (`claude_desktop_config.json`):
 
@@ -90,7 +91,7 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 | `--output NAME` | `review_comments` | Base filename for saved output (no extension) |
 | `--output-dir DIR` | repo root | Directory to write output files |
 | `--mcp` | off | Enable MCP stdio transport |
-| `--no-browser` | off | Don't open the browser automatically |
+| `--no-browser` | false (omit) | **Normal behavior** (flag omitted): browser opens automatically ~1.2s after the server is ready in standalone, `--dev`, and `--mcp`. Pass `--no-browser` to disable. |
 | `--skip-build` | off | Skip the npm build step |
 
 ---
@@ -126,24 +127,66 @@ The **💾 Save Review** button saves all comments to:
 - `<output-dir>/<output>.json` — machine-readable JSON array
 - `<output-dir>/<output>.md` — human-readable Markdown report grouped by file
 
+When the server starts, if that JSON file already exists it is **loaded into the session** so you can continue a saved review (invalid files are skipped with a log warning).
+
 ---
 
 ## MCP Tools
 
 AI agents connect via `http://localhost:<port>/mcp` (HTTP transport) or stdio (`--mcp` flag).
 
+### Repo-local MCP host configuration
+
+This repository includes checked-in defaults so common agents can use **Batch Review** and **Playwright** together:
+
+| Product | Config file | Format |
+| --- | --- | --- |
+| **Cursor** (editor and `agent` CLI) | [`.cursor/mcp.json`](.cursor/mcp.json) | `mcpServers` with `"type": "stdio"` |
+| **VS Code / GitHub Copilot** | [`.vscode/mcp.json`](.vscode/mcp.json) | `servers` with `"type": "stdio"` ([reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration)) |
+| **Claude Code** | [`.mcp.json`](.mcp.json) | Project `mcpServers` (stdio) |
+| **OpenAI Codex CLI** | [`.codex/config.toml`](.codex/config.toml) | `[mcp_servers.<name>]` stdio blocks (loaded for trusted projects) |
+| **Gemini CLI** | [`.gemini/settings.json`](.gemini/settings.json) | Top-level `mcpServers` ([guide](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html)) |
+
+All definitions run `uv run batch-review --mcp --root . --skip-build` so the review root is the **workspace directory** hosts use as the server cwd. Cursor’s `agent` CLI does not always expand `${workspaceFolder}` inside `args`, so these configs use `"."` for `--root` (VS Code may still use `${workspaceFolder}` in `.vscode/mcp.json`, which that host expands).
+
+### Verifying stdio MCP
+
+```bash
+# Smoke test with the official Python MCP client
+uv run python scripts/test_mcp_client.py
+
+# Cursor Agent CLI (after install: https://cursor.com/docs/cli )
+cd /path/to/batch_review_mcp
+agent mcp enable batch-review
+agent mcp list-tools batch-review
+agent --approve-mcps -p "Your prompt that may call MCP tools"
+```
+
 | Tool | Description |
 |---|---|
-| `list_directory(path)` | List files / directories |
-| `read_file(path)` | Read file content |
+| `list_directory(path)` | List files / directories (tree) |
+| `read_file(path)` | Read file content as plain text |
+| `get_file_content(path)` | Read file as structured data (`content`, `line_count`, `language`, `path`) — matches the REST `/api/file-content` response |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
-| `open_file_in_ui(path, mode)` | Open a file in the browser (live update) |
-| `highlight_in_ui(path, line_start, line_end)` | Scroll & highlight a range (live update) |
-| `add_comment(file_path, line_start, line_end, text)` | Add a review comment (live update) |
-| `list_comments()` | List all current comments |
-| `delete_comment(id)` | Delete a comment (live update) |
-| `save_comments(output_path?)` | Save JSON + Markdown report, returns file paths |
+| `open_file_in_ui(path, mode)` | Open a file in the browser center panel (`view` or `diff`) |
+| `close_file_in_ui()` | Clear the center panel |
+| `highlight_in_ui(path, line_start, line_end)` | Open file and highlight a 1-based line range |
+| `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open file and highlight that anchor |
+| `set_left_panel_tab(tab)` | Switch the left sidebar to `files` or `git` |
+| `add_comment(...)` | Add a review comment; shows a short notice in the UI |
+| `update_comment(comment_id, text)` | Edit comment body; UI notice |
+| `delete_comment(id)` | Delete a comment; UI notice |
+| `list_comments()` | List all in-memory comments |
+| `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
+| `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
+| *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`) |
+| `list_review_files()` | List stems of `*.json` reviews in `output_dir` |
+| `load_review_by_stem(stem)` | Replace comments from `{stem}.json`; UI notice |
+| `save_comments(output_stem?, output_dir?)` | Save JSON + Markdown report, returns paths |
+| `refresh_file_tree()` | Ask browsers to reload the file tree |
+
+Comment **add**, **update**, **delete**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 
 ---
 

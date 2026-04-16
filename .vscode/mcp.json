@@ -1,0 +1,21 @@
+{
+  "servers": {
+    "batch-review": {
+      "type": "stdio",
+      "command": "uv",
+      "args": [
+        "run",
+        "batch-review",
+        "--mcp",
+        "--root",
+        "${workspaceFolder}",
+        "--skip-build"
+      ]
+    },
+    "playwright": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"]
+    }
+  }
+}

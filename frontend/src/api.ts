@@ -98,8 +98,14 @@ export function bulkLoadComments(
   });
 }
 
-export function getConfig(): Promise<{ output_stem: string; output_dir: string }> {
-  return json<{ output_stem: string; output_dir: string }>("/api/config");
+export function getConfig(): Promise<{
+  output_stem: string;
+  output_dir: string;
+  web_ui_url: string | null;
+}> {
+  return json<{ output_stem: string; output_dir: string; web_ui_url: string | null }>(
+    "/api/config"
+  );
 }
 
 export function listReviewFiles(): Promise<string[]> {

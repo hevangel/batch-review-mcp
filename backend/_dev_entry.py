@@ -19,3 +19,10 @@ app, _mcp = create_app(
     output_stem=_stem,
     output_dir=Path(_dir) if _dir else None,
 )
+
+# Preserve web UI URL across uvicorn --reload (parent sets BATCH_REVIEW_WEB_URL).
+_web_url = os.environ.get("BATCH_REVIEW_WEB_URL", "").strip()
+if _web_url:
+    from backend.state import get_state
+
+    get_state().set_web_app_url(_web_url)

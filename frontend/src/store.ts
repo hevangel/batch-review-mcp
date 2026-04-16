@@ -38,6 +38,10 @@ interface AppStore {
   updateComment: (comment: Comment) => void;
   reorderComments: (orderedIds: string[]) => void;
   clearNewestCommentId: () => void;
+
+  /** Short-lived MCP / agent toast (right panel footer) */
+  agentNotice: string | null;
+  setAgentNotice: (msg: string | null) => void;
 }
 
 export const useStore = create<AppStore>((set) => ({
@@ -88,4 +92,7 @@ export const useStore = create<AppStore>((set) => ({
       return { comments: reordered };
     }),
   clearNewestCommentId: () => set({ newestCommentId: null }),
+
+  agentNotice: null,
+  setAgentNotice: (msg) => set({ agentNotice: msg }),
 }));

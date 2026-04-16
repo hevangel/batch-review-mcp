@@ -47,7 +47,10 @@ export type WsEventType =
   | "delete_comment"
   | "highlight"
   | "refresh_comments"
-  | "refresh_files";
+  | "refresh_files"
+  | "close_file"
+  | "set_left_tab"
+  | "agent_notice";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
@@ -67,6 +70,10 @@ export interface HighlightPayload {
 
 export interface DeleteCommentPayload {
   id: string;
+}
+
+export interface AgentNoticePayload {
+  message: string;
 }
 
 /** How the center panel is currently displaying content */

@@ -6,8 +6,9 @@ Usage (standalone — opens browser):
 Usage (MCP stdio — for Claude Desktop / Cursor):
     uv run python main.py --mcp [--root /path/to/repo] [--port 8000]
 
-The --mcp flag starts the HTTP server in a background thread and then runs the
-FastMCP stdio transport in the main thread so that MCP clients can connect.
+The --mcp flag starts the HTTP server in a background thread, opens the review
+UI in your default browser (unless --no-browser), then runs the FastMCP stdio
+transport in the main thread so that MCP clients can connect.
 """
 from __future__ import annotations
 
@@ -168,7 +169,10 @@ def cli_main() -> None:
     parser.add_argument(
         "--no-browser",
         action="store_true",
-        help="Do not open the browser automatically (standalone mode only)",
+        help=(
+            "By default the UI opens in your browser (~1.2s after the server is ready) "
+            "in standalone, --dev, and --mcp modes. Pass this flag to disable that."
+        ),
     )
     parser.add_argument(
         "--skip-build",
@@ -208,14 +212,34 @@ def cli_main() -> None:
         logger.info("Port %d busy — using %d instead", args.port, port)
 
     url = f"http://{args.host}:{port}"
+    os.environ["BATCH_REVIEW_WEB_URL"] = url
+    from backend.state import get_state
+
+    get_state().set_web_app_url(url)
+
+    def schedule_browser_open() -> None:
+        """After a short delay, open the UI in the browser (default); skip if --no-browser."""
+
+        def _open() -> None:
+            time.sleep(1.2)
+            if not args.no_browser:
+                logger.info("Opening browser at %s", url)
+                webbrowser.open(url)
+
+        threading.Thread(target=_open, daemon=True).start()
 
     if args.mcp:
         # ---- MCP stdio mode ------------------------------------------------
+        # PyPI update checks during startup can delay or confuse stdio hosts.
+        os.environ.setdefault("FASTMCP_CHECK_FOR_UPDATES", "off")
         logger.info("Starting HTTP server in background thread…")
         _start_uvicorn_thread(app, args.host, port)
         logger.info("MCP endpoint available at %s/mcp", url)
+        schedule_browser_open()
         logger.info("Starting FastMCP stdio transport…")
-        mcp_instance.run(transport="stdio")
+        # show_banner=False: banner uses stdout and breaks JSON-RPC for clients
+        # (Cursor agent CLI, VS Code MCP host, etc.).
+        mcp_instance.run(transport="stdio", show_banner=False)
     elif args.dev:
         # ---- Dev mode: uvicorn --reload ------------------------------------
         # Pass config to the thin dev-entry module via env vars so uvicorn
@@ -228,10 +252,7 @@ def cli_main() -> None:
             "For frontend HMR run in another terminal:\n"
             "  cd frontend && VITE_BACKEND_PORT=%d npm run dev", port
         )
-        if not args.no_browser:
-            threading.Thread(
-                target=lambda: (time.sleep(1.2), webbrowser.open(url)), daemon=True
-            ).start()
+        schedule_browser_open()
         uvicorn.run(
             "backend._dev_entry:app",
             host=args.host,
@@ -242,14 +263,7 @@ def cli_main() -> None:
         )
     else:
         # ---- Standalone mode -----------------------------------------------
-        def _open_browser():
-            time.sleep(1.2)
-            if not args.no_browser:
-                logger.info("Opening browser at %s", url)
-                webbrowser.open(url)
-
-        browser_thread = threading.Thread(target=_open_browser, daemon=True)
-        browser_thread.start()
+        schedule_browser_open()
 
         logger.info("Starting Batch Review at %s", url)
         uvicorn.run(app, host=args.host, port=port, log_level="info")

@@ -6,17 +6,24 @@ All UI-mutating tools also broadcast WebSocket events so the browser updates liv
 """
 from __future__ import annotations
 
-from typing import Any, Optional
+import json
+from typing import Optional
 
 from fastmcp import FastMCP
+
+from backend.models import WsEvent
 
 mcp = FastMCP(
     name="Batch Review",
     instructions=(
         "Tools for reviewing markdown files and code changes in a git repository. "
-        "Use these tools to list files, read content, inspect git diffs, add review "
-        "comments, and save the final review. UI-mutating tools broadcast live updates "
-        "to any connected browser session."
+        "List and read files (including metadata), inspect git diffs, open or close files "
+        "in the browser, highlight lines, jump to a comment's anchor, manage comments "
+        "(add, update, delete, list, load saved reviews, save), read server config, and get the "
+        "web UI URL. The MCP resource ``batch-review://server/urls`` exposes the same "
+        "connection URLs as JSON for hosts that read resources. "
+        "UI-mutating tools broadcast WebSocket events; comment mutations also show a "
+        "short notice in the browser."
     ),
 )
 
@@ -28,6 +35,30 @@ mcp = FastMCP(
 def _state():
     from backend.state import get_state
     return get_state()
+
+
+async def _agent_notice(state, message: str) -> None:
+    """Toast-style message for connected browser clients (right panel)."""
+    await state.broadcast(WsEvent(type="agent_notice", payload={"message": message}))
+
+
+def _review_connection_urls() -> dict:
+    """Shared payload for ``get_review_web_url`` and the ``batch-review://server/urls`` resource."""
+    state = _state()
+    base = state.web_app_url
+    if not base:
+        return {
+            "web_ui": None,
+            "websocket": None,
+            "mcp_http": None,
+            "error": "Web UI URL is not set yet (HTTP server has not registered the base URL).",
+        }
+    ws = base.replace("http://", "ws://", 1).replace("https://", "wss://", 1) + "/ws"
+    return {
+        "web_ui": base,
+        "websocket": ws,
+        "mcp_http": f"{base}/mcp",
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -78,6 +109,29 @@ def read_file(path: str) -> str:
     return resolved.read_text(encoding="utf-8", errors="replace")
 
 
+@mcp.tool
+def get_file_content(path: str) -> dict:
+    """Read a file and return the same structure as the REST API / UI viewer.
+
+    Args:
+        path: Relative path to the file within the repo root.
+
+    Returns:
+        Dict with keys: content, line_count, language, path. On error, {"error": "..."}.
+    """
+    from backend.api.files import file_content_model_for_path
+
+    try:
+        model = file_content_model_for_path(path)
+    except ValueError as exc:
+        return {"error": str(exc)}
+    except FileNotFoundError:
+        return {"error": "File not found"}
+    except OSError as exc:
+        return {"error": f"Cannot read file: {exc}"}
+    return model.model_dump()
+
+
 # ---------------------------------------------------------------------------
 # Git tools
 # ---------------------------------------------------------------------------
@@ -125,7 +179,6 @@ async def open_file_in_ui(path: str, mode: str = "view") -> str:
     Returns:
         Confirmation message.
     """
-    from backend.models import WsEvent
     state = _state()
     await state.broadcast(WsEvent(type="open_file", payload={"path": path, "mode": mode}))
     return f"Opened {path} in UI (mode={mode})"
@@ -143,7 +196,6 @@ async def highlight_in_ui(path: str, line_start: int, line_end: int) -> str:
     Returns:
         Confirmation message.
     """
-    from backend.models import WsEvent
     state = _state()
     await state.broadcast(
         WsEvent(
@@ -152,6 +204,53 @@ async def highlight_in_ui(path: str, line_start: int, line_end: int) -> str:
         )
     )
     return f"Highlighted {path}:L{line_start}-{line_end} in UI"
+
+
+@mcp.tool
+async def close_file_in_ui() -> str:
+    """Clear the center panel (same effect as having no file selected)."""
+    state = _state()
+    await state.broadcast(WsEvent(type="close_file", payload=None))
+    return "Closed file in UI"
+
+
+@mcp.tool
+async def set_left_panel_tab(tab: str) -> str:
+    """Switch the left sidebar tab between the file tree and git changes.
+
+    Args:
+        tab: Either "files" or "git".
+    """
+    state = _state()
+    normalized = tab.strip().lower()
+    if normalized not in ("files", "git"):
+        return 'Error: tab must be "files" or "git"'
+    await state.broadcast(WsEvent(type="set_left_tab", payload={"tab": normalized}))
+    return f"Left panel tab set to {normalized}"
+
+
+@mcp.tool
+async def jump_to_comment_in_ui(comment_id: str) -> str:
+    """Open the file and highlight the line range for a comment (like clicking @file:L…).
+
+    Args:
+        comment_id: UUID of an existing comment from list_comments.
+    """
+    state = _state()
+    comment = state.comments.get(comment_id)
+    if comment is None:
+        return f"Error: comment {comment_id} not found"
+    await state.broadcast(
+        WsEvent(
+            type="highlight",
+            payload={
+                "path": comment.file_path,
+                "line_start": comment.line_start,
+                "line_end": comment.line_end,
+            },
+        )
+    )
+    return f"Jumped to {comment.reference} in UI"
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +277,6 @@ async def add_comment(
     Returns:
         The created Comment as a dict.
     """
-    from backend.models import WsEvent
     state = _state()
     comment = state.add_comment(
         file_path=file_path,
@@ -188,6 +286,7 @@ async def add_comment(
         highlighted_text=highlighted_text,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
+    await _agent_notice(state, f"Agent added comment {comment.reference}")
     return comment.model_dump()
 
 
@@ -212,12 +311,32 @@ async def delete_comment(comment_id: str) -> str:
     Returns:
         Confirmation or error message.
     """
-    from backend.models import WsEvent
     state = _state()
     if state.delete_comment(comment_id):
         await state.broadcast(WsEvent(type="delete_comment", payload={"id": comment_id}))
+        await _agent_notice(state, "Agent deleted a review comment")
         return f"Deleted comment {comment_id}"
     return f"Comment {comment_id} not found"
+
+
+@mcp.tool
+async def update_comment(comment_id: str, text: str) -> dict:
+    """Change the body text of an existing comment (same as editing in the UI).
+
+    Args:
+        comment_id: UUID of the comment.
+        text: New comment text.
+
+    Returns:
+        Updated Comment dict, or {\"error\": \"...\"} if not found.
+    """
+    state = _state()
+    updated = state.update_comment_text(comment_id, text)
+    if updated is None:
+        return {"error": f"Comment {comment_id} not found"}
+    await state.broadcast(WsEvent(type="add_comment", payload=updated.model_dump()))
+    await _agent_notice(state, f"Agent updated comment {updated.reference}")
+    return updated.model_dump()
 
 
 @mcp.tool
@@ -228,14 +347,85 @@ def save_comments(
     """Save all review comments to both a JSON file and a Markdown report.
 
     Args:
-        output_stem: Base filename without extension (default: review_comments).
-        output_dir: Directory to write output files into (default: repo root).
+        output_stem: Base filename without extension (server default from config).
+        output_dir: Directory to write output files into (server default from config).
 
     Returns:
         Dict with keys: json_path, md_path, comments (list of comment dicts).
     """
     state = _state()
     return state.save_comments(output_stem=output_stem, output_dir=output_dir)
+
+
+@mcp.tool
+def get_config() -> dict:
+    """Return save/load defaults and the web UI base URL when known."""
+    state = _state()
+    return {
+        "output_stem": state.output_stem,
+        "output_dir": str(state.output_dir),
+        "web_ui_url": state.web_app_url,
+    }
+
+
+@mcp.tool
+def get_review_web_url() -> dict:
+    """Return URLs for the Batch Review web UI, browser WebSocket, and HTTP MCP mount.
+
+    Use this to share the review app link with a user or to call MCP over HTTP on the
+    same server. Values are null until the HTTP server has bound (set at process startup).
+    The same JSON is available as MCP resource ``batch-review://server/urls``.
+    """
+    return _review_connection_urls()
+
+
+@mcp.resource(
+    "batch-review://server/urls",
+    name="batch_review_server_urls",
+    title="Batch Review server URLs",
+    description=(
+        "JSON with web_ui (browser app), websocket (live UI sync), and mcp_http "
+        "(streamable HTTP MCP on the same host). Use resources/read with this URI."
+    ),
+    mime_type="application/json",
+)
+def resource_batch_review_server_urls() -> str:
+    """MCP resource mirroring ``get_review_web_url`` for clients that prefer resources/list."""
+    return json.dumps(_review_connection_urls(), indent=2)
+
+
+@mcp.tool
+def list_review_files() -> list[str]:
+    """List base names of saved ``*.json`` review files in output_dir (for load_review_by_stem)."""
+    state = _state()
+    return state.list_review_stems()
+
+
+@mcp.tool
+async def load_review_by_stem(stem: str) -> list[dict]:
+    """Replace in-memory comments from ``{stem}.json`` under output_dir (same as UI Load).
+
+    Args:
+        stem: Filename stem without ``.json`` (must not contain path separators).
+
+    Returns:
+        List of loaded Comment dicts, or ``[{\"error\": \"...\"}]`` on failure.
+    """
+    state = _state()
+    try:
+        loaded = state.load_review_from_stem(stem)
+    except (ValueError, FileNotFoundError) as exc:
+        return [{"error": str(exc)}]
+    except Exception as exc:
+        return [{"error": f"Failed to read file: {exc}"}]
+    await state.broadcast(
+        WsEvent(
+            type="refresh_comments",
+            payload=[c.model_dump() for c in loaded],
+        )
+    )
+    await _agent_notice(state, f"Agent loaded review '{stem}' ({len(loaded)} comment(s))")
+    return [c.model_dump() for c in loaded]
 
 
 @mcp.tool
@@ -247,7 +437,6 @@ async def refresh_file_tree() -> str:
     Returns:
         Confirmation message.
     """
-    from backend.models import WsEvent
     state = _state()
     await state.broadcast(WsEvent(type="refresh_files", payload=None))
     return "File tree refresh broadcast sent to all connected clients"

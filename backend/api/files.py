@@ -135,22 +135,21 @@ def list_files(path: Optional[str] = Query(default=None)) -> list[FileInfo]:
     return _build_tree(target, state.repo_root)
 
 
-@router.get("/file-content", response_model=FileContentResponse)
-def get_file_content(path: str = Query(...)) -> FileContentResponse:
-    """Return the text content of a file within the repo."""
+def file_content_model_for_path(path: str) -> FileContentResponse:
+    """Return file content metadata for a repo-relative path.
+
+    Raises:
+        ValueError: path escapes repo or is a directory.
+        FileNotFoundError: path does not exist.
+        OSError: unreadable file.
+    """
     state = get_state()
-    try:
-        resolved = state.resolve_safe_path(path)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    resolved = state.resolve_safe_path(path)
     if not resolved.exists():
-        raise HTTPException(status_code=404, detail="File not found")
+        raise FileNotFoundError("File not found")
     if resolved.is_dir():
-        raise HTTPException(status_code=400, detail="Path is a directory")
-    try:
-        content = resolved.read_text(encoding="utf-8", errors="replace")
-    except OSError as exc:
-        raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}")
+        raise ValueError("Path is a directory")
+    content = resolved.read_text(encoding="utf-8", errors="replace")
     lines = content.splitlines()
     rel = str(resolved.relative_to(state.repo_root)).replace("\\", "/")
     return FileContentResponse(
@@ -159,3 +158,16 @@ def get_file_content(path: str = Query(...)) -> FileContentResponse:
         language=_detect_language(resolved.name),
         path=rel,
     )
+
+
+@router.get("/file-content", response_model=FileContentResponse)
+def get_file_content(path: str = Query(...)) -> FileContentResponse:
+    """Return the text content of a file within the repo."""
+    try:
+        return file_content_model_for_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="File not found")
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}")

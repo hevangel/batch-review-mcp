@@ -38,6 +38,8 @@ export default function RightPanel() {
   const setComments = useStore((s) => s.setComments);
   const reorderComments = useStore((s) => s.reorderComments);
   const openFilePath = useStore((s) => s.openFilePath);
+  const agentNotice = useStore((s) => s.agentNotice);
+  const setAgentNotice = useStore((s) => s.setAgentNotice);
 
   const [saving, setSaving] = useState(false);
   const [savedPaths, setSavedPaths] = useState<{ json: string; md: string } | null>(null);
@@ -61,6 +63,13 @@ export default function RightPanel() {
   useEffect(() => {
     getConfig().then((cfg) => setReviewStem(cfg.output_stem)).catch(() => {});
   }, []);
+
+  // MCP / agent toast — auto-dismiss like a transient status message
+  useEffect(() => {
+    if (!agentNotice) return;
+    const t = window.setTimeout(() => setAgentNotice(null), 6000);
+    return () => window.clearTimeout(t);
+  }, [agentNotice, setAgentNotice]);
 
   // Auto-scroll to newest comment
   useEffect(() => {
@@ -249,6 +258,21 @@ export default function RightPanel() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-gray-700 px-3 py-2 flex flex-col gap-1.5" onKeyDown={handleLoadMenuKey}>
+        {agentNotice && (
+          <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative border border-blue-600/40">
+            <button
+              type="button"
+              onClick={() => setAgentNotice(null)}
+              className="absolute top-1 right-1.5 text-gray-500 hover:text-gray-300 text-xs leading-none"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+            <p className="text-xs text-blue-300 truncate pr-4" title={agentNotice}>
+              {agentNotice}
+            </p>
+          </div>
+        )}
         {/* Saved paths — dismissible */}
         {savedPaths && (
           <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative">
