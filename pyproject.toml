@@ -12,10 +12,16 @@ dependencies = [
     "python-multipart>=0.0.9",
     "aiofiles>=23.2.1",
     "websockets>=12.0",
+    "python-dotenv>=1.2.2",
 ]
 
 [project.scripts]
 batch-review = "main:cli_main"
+
+[project.urls]
+Homepage = "https://github.com/hevangel/batch-review-mcp"
+Repository = "https://github.com/hevangel/batch-review-mcp"
+Issues = "https://github.com/hevangel/batch-review-mcp/issues"
 
 [tool.uv]
 package = true

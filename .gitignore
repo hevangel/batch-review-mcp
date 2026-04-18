@@ -51,6 +51,9 @@ review_comments.md
 Thumbs.db
 desktop.ini
 
+# Design exports (local only)
+webui.pen
+
 # Logs
 logs/
 *.log

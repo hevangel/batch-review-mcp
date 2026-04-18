@@ -32,7 +32,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 ## Installation
 
 ```bash
-git clone https://github.com/your-org/batch-review-mcp
+git clone https://github.com/hevangel/batch-review-mcp.git
 cd batch-review-mcp
 uv sync
 ```
