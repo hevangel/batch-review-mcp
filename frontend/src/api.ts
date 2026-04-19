@@ -47,6 +47,11 @@ export function listComments(): Promise<Comment[]> {
   return json<Comment[]>("/api/comments");
 }
 
+/** Re-scan repo files and refresh each comment's ``outdated`` flag (broadcasts to all clients). */
+export function recomputeCommentStale(): Promise<Comment[]> {
+  return json<Comment[]>("/api/comments/recompute-stale", { method: "POST" });
+}
+
 export function createComment(
   file_path: string,
   line_start: number,
@@ -68,8 +73,12 @@ export function createComment(
   });
 }
 
-export function imageUrl(path: string): string {
-  return `${BASE}/api/image-content?path=${encodeURIComponent(path)}`;
+export function imageUrl(path: string, cacheBust?: number): string {
+  let url = `${BASE}/api/image-content?path=${encodeURIComponent(path)}`;
+  if (cacheBust !== undefined) {
+    url += `&_cb=${encodeURIComponent(String(cacheBust))}`;
+  }
+  return url;
 }
 
 export function updateCommentText(id: string, text: string): Promise<Comment> {
@@ -82,6 +91,20 @@ export function updateCommentText(id: string, text: string): Promise<Comment> {
 
 export function deleteComment(id: string): Promise<void> {
   return json<void>(`/api/comments/${id}`, { method: "DELETE" });
+}
+
+/** Remove every in-memory review comment (same as the right panel Clear all button). */
+export async function clearAllComments(): Promise<void> {
+  const res = await fetch(BASE + "/api/comments/clear", { method: "DELETE" });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(`API error ${res.status}: ${text}`);
+  }
+}
+
+/** Remove comments marked outdated; returns the comments still in memory. */
+export function deleteOutdatedComments(): Promise<Comment[]> {
+  return json<Comment[]>("/api/comments/outdated", { method: "DELETE" });
 }
 
 export function saveComments(

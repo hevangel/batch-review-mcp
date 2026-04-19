@@ -4,6 +4,7 @@ import type { editor as MonacoEditor } from "monaco-editor";
 import type { DiffResponse } from "../../types";
 import { useStore } from "../../store";
 import { createComment } from "../../api";
+import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface DiffViewerProps {
   diff: DiffResponse;
@@ -34,6 +35,7 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
   const addCommentToStore = useStore((s) => s.addComment);
   const setSelection = useStore((s) => s.setSelection);
   const activeHighlight = useStore((s) => s.activeHighlight);
+  const bumpCenterReload = useStore((s) => s.bumpCenterReload);
 
   const handleMount = useCallback(
     (editor: MonacoEditor.IStandaloneDiffEditor) => {
@@ -110,13 +112,28 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
           <span className="text-xs shrink-0">→</span>
           <span className="text-xs text-green-400 shrink-0">Modified (working tree)</span>
         </div>
-        <button
-          onClick={handleAddComment}
-          title="Add comment on modified side (Ctrl+Alt+C)"
-          className="ml-2 px-2 py-0.5 bg-blue-700 hover:bg-blue-600 text-white text-xs rounded shrink-0"
-        >
-          + Add Comment
-        </button>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => bumpCenterReload()}
+            aria-label="Reload: refresh git diff from disk"
+            title="Reload git diff (after the file changes on disk)"
+            className={toolbarBtnNeutral}
+          >
+            <IconRefresh className={toolbarIconClass} />
+            <span>Reload</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleAddComment}
+            aria-label="Add comment on modified side (Ctrl+Alt+C)"
+            title="Add comment on modified side (Ctrl+Alt+C)"
+            className={toolbarBtnPrimary}
+          >
+            <IconPlus className={toolbarIconClass} />
+            <span>Add</span>
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-hidden">
         <DiffEditor

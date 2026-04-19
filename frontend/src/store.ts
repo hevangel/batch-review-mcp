@@ -18,7 +18,12 @@ interface AppStore {
   // Center panel
   openFilePath: string | null;
   openMode: ViewMode;
+  /** Bump to re-fetch the open file (toolbar reload or server re-open of same path). */
+  centerReloadEpoch: number;
+  bumpCenterReload: () => void;
   openFile: (path: string, mode?: ViewMode) => void;
+  /** Same as openFile but increments centerReloadEpoch when path+mode already match (MCP / WS open_file). */
+  openFileFromServer: (path: string, mode?: ViewMode) => void;
   closeFile: () => void;
 
   // Selection in center panel (for creating comments)
@@ -42,6 +47,7 @@ interface AppStore {
   updateComment: (comment: Comment) => void;
   reorderComments: (orderedIds: string[]) => void;
   clearNewestCommentId: () => void;
+  clearComments: () => void;
 
   /** Short-lived MCP / agent toast (right panel footer) */
   agentNotice: string | null;
@@ -57,8 +63,22 @@ export const useStore = create<AppStore>((set) => ({
 
   openFilePath: null,
   openMode: "view",
+  centerReloadEpoch: 0,
+  bumpCenterReload: () => set((s) => ({ centerReloadEpoch: s.centerReloadEpoch + 1 })),
   openFile: (path, mode = "view") =>
     set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null }),
+  openFileFromServer: (path, mode = "view") =>
+    set((s) => {
+      const m = mode ?? "view";
+      const same = s.openFilePath === path && s.openMode === m;
+      return {
+        openFilePath: path,
+        openMode: m,
+        selection: null,
+        imageRegion: null,
+        centerReloadEpoch: same ? s.centerReloadEpoch + 1 : s.centerReloadEpoch,
+      };
+    }),
   closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null }),
 
   selection: null,
@@ -99,6 +119,7 @@ export const useStore = create<AppStore>((set) => ({
       return { comments: reordered };
     }),
   clearNewestCommentId: () => set({ newestCommentId: null }),
+  clearComments: () => set({ comments: [], newestCommentId: null }),
 
   agentNotice: null,
   setAgentNotice: (msg) => set({ agentNotice: msg }),

@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../../store";
 import { createComment, imageUrl } from "../../api";
+import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface ImageViewerProps {
   filePath: string;
+  /** Bumped when the parent reloads so the image URL changes and the browser refetches bytes. */
+  cacheBust?: number;
 }
 
 interface Rect {
@@ -13,11 +16,12 @@ interface Rect {
   y2: number;
 }
 
-export default function ImageViewer({ filePath }: ImageViewerProps) {
+export default function ImageViewer({ filePath, cacheBust }: ImageViewerProps) {
   const addCommentToStore = useStore((s) => s.addComment);
   const imageRegion = useStore((s) => s.imageRegion);
   const setImageRegion = useStore((s) => s.setImageRegion);
   const activeHighlight = useStore((s) => s.activeHighlight);
+  const bumpCenterReload = useStore((s) => s.bumpCenterReload);
 
   const imgRef = useRef<HTMLImageElement>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
@@ -209,15 +213,30 @@ export default function ImageViewer({ filePath }: ImageViewerProps) {
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0">
-        <span className="text-xs text-gray-400 font-mono truncate">{filePath}</span>
-        <button
-          onClick={handleAddComment}
-          title="Add Comment (Ctrl+Alt+C)"
-          className="ml-2 px-2 py-0.5 bg-blue-700 hover:bg-blue-600 text-white text-xs rounded shrink-0"
-        >
-          + Add Comment
-        </button>
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0 gap-2">
+        <span className="text-xs text-gray-400 font-mono truncate min-w-0">{filePath}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => bumpCenterReload()}
+            aria-label="Reload: fetch the latest image from disk"
+            title="Reload image from disk (after the file changes on disk)"
+            className={toolbarBtnNeutral}
+          >
+            <IconRefresh className={toolbarIconClass} />
+            <span>Reload</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleAddComment}
+            aria-label="Add image-region comment (Ctrl+Alt+C)"
+            title="Add Comment (Ctrl+Alt+C)"
+            className={toolbarBtnPrimary}
+          >
+            <IconPlus className={toolbarIconClass} />
+            <span>Add</span>
+          </button>
+        </div>
       </div>
 
       {/* Image container */}
@@ -232,7 +251,7 @@ export default function ImageViewer({ filePath }: ImageViewerProps) {
         >
           <img
             ref={imgRef}
-            src={imageUrl(filePath)}
+            src={imageUrl(filePath, cacheBust)}
             onLoad={handleImageLoad}
             alt={filePath}
             style={{ maxWidth: "100%", display: "block", userSelect: "none" }}

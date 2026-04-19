@@ -36,6 +36,8 @@ class Comment(BaseModel):
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
+    #: True when on-disk text at ``line_start``–``line_end`` no longer matches ``highlighted_text``.
+    outdated: bool = False
 
 
 class CreateCommentRequest(BaseModel):

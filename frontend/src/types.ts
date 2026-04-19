@@ -28,6 +28,8 @@ export interface Comment {
   region_x2?: number | null;
   region_y2?: number | null;
   created_at: string;
+  /** True when the file text at this range no longer matches highlighted_text. */
+  outdated?: boolean;
 }
 
 export interface FileContentResponse {

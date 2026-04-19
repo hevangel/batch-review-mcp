@@ -138,12 +138,32 @@ class AppState:
         self.comments[comment.id] = comment
         return comment
 
+    def recompute_all_comment_outdated(self) -> None:
+        """Refresh ``outdated`` on every in-memory comment from current files."""
+        from backend.comment_staleness import comment_is_outdated
+
+        for c in self.comments.values():
+            c.outdated = comment_is_outdated(self.resolve_safe_path, c)
+
     def delete_comment(self, comment_id: str) -> bool:
         """Remove a comment by ID. Returns True if it existed."""
         if comment_id in self.comments:
             del self.comments[comment_id]
             return True
         return False
+
+    def delete_outdated_comments(self) -> int:
+        """Remove comments marked ``outdated``. Returns how many were removed."""
+        to_remove = [cid for cid, c in self.comments.items() if c.outdated]
+        for cid in to_remove:
+            del self.comments[cid]
+        return len(to_remove)
+
+    def clear_all_comments(self) -> int:
+        """Remove every in-memory comment. Returns how many were cleared."""
+        n = len(self.comments)
+        self.comments.clear()
+        return n
 
     def update_comment_text(self, comment_id: str, text: str) -> Comment | None:
         """Set comment text. Returns the comment if it existed."""
@@ -322,4 +342,5 @@ def init_state(
     global _state
     _state = AppState(repo_root, output_stem=output_stem, output_dir=output_dir)
     _state.load_initial_review_json_if_present()
+    _state.recompute_all_comment_outdated()
     return _state

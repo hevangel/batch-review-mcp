@@ -3,6 +3,7 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { useStore } from "../../store";
 import { createComment } from "../../api";
+import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface CodeViewerProps {
   content: string;
@@ -32,6 +33,7 @@ export default function CodeViewer({ content, language, filePath }: CodeViewerPr
   const addCommentToStore = useStore((s) => s.addComment);
   const setSelection = useStore((s) => s.setSelection);
   const activeHighlight = useStore((s) => s.activeHighlight);
+  const bumpCenterReload = useStore((s) => s.bumpCenterReload);
 
   const handleMount: OnMount = useCallback(
     (editor) => {
@@ -93,15 +95,30 @@ export default function CodeViewer({ content, language, filePath }: CodeViewerPr
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0">
-        <span className="text-xs text-gray-400 font-mono truncate">{filePath}</span>
-        <button
-          onClick={handleAddComment}
-          title="Add Comment (Ctrl+Alt+C)"
-          className="ml-2 px-2 py-0.5 bg-blue-700 hover:bg-blue-600 text-white text-xs rounded shrink-0"
-        >
-          + Add Comment
-        </button>
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0 gap-2">
+        <span className="text-xs text-gray-400 font-mono truncate min-w-0">{filePath}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => bumpCenterReload()}
+            aria-label="Reload: fetch the latest file content from disk"
+            title="Reload from disk (after the file changes on disk)"
+            className={toolbarBtnNeutral}
+          >
+            <IconRefresh className={toolbarIconClass} />
+            <span>Reload</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleAddComment}
+            aria-label="Add comment from current selection (Ctrl+Alt+C)"
+            title="Add Comment (Ctrl+Alt+C)"
+            className={toolbarBtnPrimary}
+          >
+            <IconPlus className={toolbarIconClass} />
+            <span>Add</span>
+          </button>
+        </div>
       </div>
       <div className="flex-1 overflow-hidden">
         <Editor

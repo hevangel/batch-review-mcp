@@ -1,6 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import type { FileInfo } from "../../types";
 import { useStore } from "../../store";
+import {
+  IconCollapseAll,
+  IconExpandAll,
+  toolbarBtnBase,
+} from "../ui/toolbarIcons";
 
 const FILE_ICONS: Record<string, string> = {
   py: "🐍",
@@ -152,20 +157,30 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
   }
   return (
     <div className="flex flex-col h-full">
-      <div className="flex items-center gap-1 px-2 py-1 border-b border-gray-700">
+      <div className="flex flex-wrap items-center gap-1 px-2 py-1 border-b border-gray-700">
         <button
+          type="button"
           onClick={expandAll}
-          className="text-xs text-gray-400 hover:text-gray-200 px-1.5 py-0.5 rounded hover:bg-gray-700"
+          aria-label="Expand all folders in the file tree"
           title="Expand all folders"
+          className={`${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
         >
-          Expand All
+          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+            <IconExpandAll className="block h-3.5 w-3.5 max-h-full max-w-full" />
+          </span>
+          <span className="leading-tight">Expand all</span>
         </button>
         <button
+          type="button"
           onClick={collapseAll}
-          className="text-xs text-gray-400 hover:text-gray-200 px-1.5 py-0.5 rounded hover:bg-gray-700"
+          aria-label="Collapse all folders in the file tree"
           title="Collapse all folders"
+          className={`${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
         >
-          Collapse All
+          <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+            <IconCollapseAll className="block h-3.5 w-3.5 max-h-full max-w-full" />
+          </span>
+          <span className="leading-tight">Collapse all</span>
         </button>
       </div>
       <div className="monaco-like-scrollbar overflow-y-auto flex-1 py-1">

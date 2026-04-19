@@ -19,8 +19,8 @@ mcp = FastMCP(
         "Review-first tools for markdown files and code changes in a git repository. "
         "Start with git review context via get_git_changes() and get_git_diff(path), then use "
         "structured file reads only when extra context is needed. Manage review comments "
-        "(add, update, delete, list, load saved reviews, save), drive the shared browser UI "
-        "(open, highlight, jump), read server config, and get the web UI URL. "
+        "(add, update, delete, clear all, delete outdated, list, recompute stale, load saved reviews, save), drive the shared browser UI "
+        "(open, highlight, jump — repeat open_file_in_ui for the same path refreshes the view), read server config, and get the web UI URL. "
         "Directory listing is provided only as a navigation helper, not as a general-purpose "
         "filesystem API. The MCP resource ``batch-review://server/urls`` exposes the same "
         "connection URLs as JSON for hosts that read resources. UI-mutating tools broadcast "
@@ -151,6 +151,9 @@ def get_git_diff(path: str) -> dict:
 async def open_file_in_ui(path: str, mode: str = "view") -> str:
     """Open a file in the browser UI center panel.
 
+    If that file is already open with the same mode, the center view reloads from
+    disk (or re-fetches the git diff in diff mode) so edits on disk are visible.
+
     Args:
         path: Relative path to the file within the repo.
         mode: "view" for normal view or "diff" for git diff view.
@@ -270,6 +273,29 @@ def list_comments() -> list[dict]:
 
 
 @mcp.tool
+async def recompute_comment_stale() -> list[dict]:
+    """Re-scan repository files and refresh each comment's ``outdated`` flag.
+
+    Compares on-disk text at each comment's line range to the stored ``highlighted_text``.
+    Same behavior as the web UI **Reload comments** button: updates the browser via WebSocket.
+
+    Returns:
+        List of Comment dicts (including updated ``outdated`` booleans).
+    """
+    state = _state()
+    state.recompute_all_comment_outdated()
+    comments = list(state.comments.values())
+    await state.broadcast(
+        WsEvent(
+            type="refresh_comments",
+            payload=[c.model_dump() for c in comments],
+        )
+    )
+    await _agent_notice(state, "Agent refreshed comment outdated markers")
+    return [c.model_dump() for c in comments]
+
+
+@mcp.tool
 async def delete_comment(comment_id: str) -> str:
     """Delete a review comment by its ID.
 
@@ -285,6 +311,45 @@ async def delete_comment(comment_id: str) -> str:
         await _agent_notice(state, "Agent deleted a review comment")
         return f"Deleted comment {comment_id}"
     return f"Comment {comment_id} not found"
+
+
+@mcp.tool
+async def clear_all_comments() -> str:
+    """Remove every in-memory review comment at once (same as the UI Clear all button).
+
+    This clears the live session only; it does not delete JSON/Markdown files on disk
+    until you call save_comments() again (which would then write empty files).
+
+    Returns:
+        A short confirmation including how many comments were removed.
+    """
+    state = _state()
+    n = state.clear_all_comments()
+    await state.broadcast(WsEvent(type="refresh_comments", payload=[]))
+    await _agent_notice(state, f"Agent cleared all review comments ({n} removed)")
+    return f"Cleared {n} comment(s)."
+
+
+@mcp.tool
+async def delete_outdated_comments() -> str:
+    """Remove every comment marked ``outdated`` (same as the UI Delete outdated button).
+
+    Run ``recompute_comment_stale()`` first so ``outdated`` flags are up to date.
+
+    Returns:
+        Short confirmation with how many comments were removed.
+    """
+    state = _state()
+    n = state.delete_outdated_comments()
+    remaining = list(state.comments.values())
+    await state.broadcast(
+        WsEvent(
+            type="refresh_comments",
+            payload=[c.model_dump() for c in remaining],
+        )
+    )
+    await _agent_notice(state, f"Agent removed {n} outdated comment(s)")
+    return f"Removed {n} outdated comment(s); {len(remaining)} remain."
 
 
 @mcp.tool

@@ -1,9 +1,26 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useStore } from "../../store";
-import { saveComments, listReviewFiles, loadReviewByStem, getConfig } from "../../api";
+import {
+  saveComments,
+  listReviewFiles,
+  loadReviewByStem,
+  getConfig,
+  clearAllComments,
+  deleteOutdatedComments,
+  recomputeCommentStale,
+} from "../../api";
 import CommentBox from "./CommentBox";
 import type { Comment } from "../../types";
+import {
+  IconClearSession,
+  IconFolderLoad,
+  IconRefresh,
+  IconSaveToDisk,
+  IconTrash,
+  toolbarIconClass,
+  toolbarIconOnlyClass,
+} from "../ui/toolbarIcons";
 
 type FilterMode = "all" | "file" | "folder" | "folder-deep";
 
@@ -36,6 +53,7 @@ export default function RightPanel() {
   const comments = useStore((s) => s.comments);
   const newestCommentId = useStore((s) => s.newestCommentId);
   const setComments = useStore((s) => s.setComments);
+  const clearComments = useStore((s) => s.clearComments);
   const reorderComments = useStore((s) => s.reorderComments);
   const openFilePath = useStore((s) => s.openFilePath);
   const agentNotice = useStore((s) => s.agentNotice);
@@ -47,8 +65,14 @@ export default function RightPanel() {
   const [reviewStem, setReviewStem] = useState("review_comments");
   const [editingStem, setEditingStem] = useState(false);
   const stemInputRef = useRef<HTMLInputElement>(null);
+  /** Value when the user opened the filename editor — restored if they commit empty text. */
+  const stemSnapshotRef = useRef("review_comments");
+  /** Escape sets this so the following blur does not run commit (stale closure). */
+  const skipBlurCommitRef = useRef(false);
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [reloadingStale, setReloadingStale] = useState(false);
+  const [deletingOutdated, setDeletingOutdated] = useState(false);
   const [reviewFiles, setReviewFiles] = useState<string[]>([]);
   const [showLoadMenu, setShowLoadMenu] = useState(false);
   const [loadMenuHighlight, setLoadMenuHighlight] = useState(0);
@@ -136,6 +160,55 @@ export default function RightPanel() {
     }
   }, [showLoadMenu, reviewFiles, loadMenuHighlight, handleLoadFile]);
 
+  const commitStemEdit = useCallback(() => {
+    skipBlurCommitRef.current = false;
+    const trimmed = reviewStem.trim();
+    if (!trimmed) {
+      setReviewStem(stemSnapshotRef.current);
+    } else {
+      setReviewStem(trimmed);
+    }
+    setEditingStem(false);
+  }, [reviewStem]);
+
+  const cancelStemEdit = useCallback(() => {
+    skipBlurCommitRef.current = true;
+    setReviewStem(stemSnapshotRef.current);
+    setEditingStem(false);
+  }, []);
+
+  const handleReloadCommentStale = async () => {
+    if (comments.length === 0) return;
+    setSaveError(null);
+    setReloadingStale(true);
+    try {
+      const updated = await recomputeCommentStale();
+      setComments(updated);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setReloadingStale(false);
+    }
+  };
+
+  const handleClearAll = async () => {
+    if (comments.length === 0) return;
+    const n = comments.length;
+    const ok = window.confirm(
+      `Remove all ${n} comment(s) from this session?\n\n` +
+        "Saved files on disk are not changed until you save again.",
+    );
+    if (!ok) return;
+    setSaveError(null);
+    try {
+      await clearAllComments();
+      clearComments();
+      setSavedPaths(null);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveError(null);
@@ -186,42 +259,102 @@ export default function RightPanel() {
   }, [comments, reorderComments]);
 
   const visible = applyFilter(comments, filterMode, openFilePath);
+  const outdatedCount = comments.filter((c) => c.outdated).length;
+
+  const handleDeleteOutdated = async () => {
+    if (outdatedCount === 0) return;
+    const ok = window.confirm(
+      `Remove ${outdatedCount} outdated comment(s)?\n\n` +
+        "Saved files on disk are not changed until you save again.",
+    );
+    if (!ok) return;
+    setSaveError(null);
+    setDeletingOutdated(true);
+    try {
+      const remaining = await deleteOutdatedComments();
+      setComments(remaining);
+      setSavedPaths(null);
+    } catch (e: unknown) {
+      setSaveError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingOutdated(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gray-800 border-l border-gray-700">
-      {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-700 shrink-0 gap-1">
-        <h2 className="text-sm font-semibold text-gray-200 shrink-0">
-          Review Comments
-          {comments.length > 0 && (
-            <span className="ml-1.5 text-xs bg-blue-700 text-blue-100 px-1.5 rounded-full">
-              {visible.length !== comments.length ? `${visible.length}/${comments.length}` : comments.length}
-            </span>
-          )}
-        </h2>
+      {/* Header: title + filters, then full-width divider, then Clear all */}
+      <div className="flex flex-col shrink-0 border-b border-gray-700">
+        <div className="flex items-start justify-between px-3 py-2 gap-2">
+          <h2 className="text-sm font-semibold text-gray-200 shrink-0">
+            Review Comments
+            {comments.length > 0 && (
+              <span className="ml-1.5 text-xs bg-blue-700 text-blue-100 px-1.5 rounded-full">
+                {visible.length !== comments.length ? `${visible.length}/${comments.length}` : comments.length}
+              </span>
+            )}
+          </h2>
 
-        <div className="flex items-center gap-1 shrink-0">
-          {/* Sort by file */}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Sort by file */}
+            <button
+              type="button"
+              onClick={handleSortByFile}
+              title="Sort by file path"
+              className="px-1.5 py-0.5 text-gray-400 hover:text-gray-200 text-sm rounded hover:bg-gray-700"
+            >
+              ⇅
+            </button>
+
+            {/* Filter dropdown */}
+            <select
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value as FilterMode)}
+              className="text-xs bg-gray-700 border border-gray-600 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+              title="Filter comments"
+            >
+              <option value="all">All</option>
+              <option value="file">This file</option>
+              <option value="folder">This folder</option>
+              <option value="folder-deep">Folder + sub</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="border-t border-gray-700 px-3 py-1.5 flex flex-wrap justify-end items-center gap-1.5">
           <button
-            onClick={handleSortByFile}
-            title="Sort by file path"
-            className="px-1.5 py-0.5 text-gray-400 hover:text-gray-200 text-sm rounded hover:bg-gray-700"
+            type="button"
+            onClick={handleReloadCommentStale}
+            disabled={comments.length === 0 || reloadingStale}
+            aria-label="Reload comments: re-scan files on disk and update which comments are marked outdated."
+            title="Re-scan files and update outdated marks (strikethrough) against highlighted text"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-600 hover:bg-gray-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            ⇅
+            <IconRefresh className={toolbarIconClass} />
+            <span>{reloadingStale ? "…" : "Reload"}</span>
           </button>
-
-          {/* Filter dropdown */}
-          <select
-            value={filterMode}
-            onChange={(e) => setFilterMode(e.target.value as FilterMode)}
-            className="text-xs bg-gray-700 border border-gray-600 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
-            title="Filter comments"
+          <button
+            type="button"
+            onClick={handleDeleteOutdated}
+            disabled={outdatedCount === 0 || deletingOutdated}
+            aria-label={`Delete outdated: remove ${outdatedCount} comment(s) marked outdated. Run Reload first so marks are current. Disk files unchanged until you save.`}
+            title="Remove every comment marked outdated (use Reload first to refresh marks)"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-rose-900/60 hover:bg-rose-800/70 text-white border border-rose-700/50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <option value="all">All</option>
-            <option value="file">This file</option>
-            <option value="folder">This folder</option>
-            <option value="folder-deep">Folder + sub</option>
-          </select>
+            <IconTrash className={toolbarIconClass} />
+            <span>{deletingOutdated ? "…" : "Outdated"}</span>
+          </button>
+          <button
+            type="button"
+            onClick={handleClearAll}
+            disabled={comments.length === 0}
+            aria-label="Clear all: remove every comment from this session. Saved JSON on disk is unchanged until you save again."
+            title="Remove every comment from this session (disk files unchanged until you save)"
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <IconClearSession className={toolbarIconClass} />
+            <span>Clear all</span>
+          </button>
         </div>
       </div>
 
@@ -234,7 +367,7 @@ export default function RightPanel() {
                 <p>No comments yet.</p>
                 <p className="mt-2 text-xs">
                   Select text in a file and click<br />
-                  <span className="text-blue-400">+ Add Comment</span>.
+                  <span className="text-blue-400">Add</span> in the center panel toolbar.
                 </p>
               </>
             ) : (
@@ -300,12 +433,14 @@ export default function RightPanel() {
           {/* Load button */}
           <div className="relative" ref={loadMenuRef}>
             <button
+              type="button"
               ref={loadBtnRef}
               onClick={handleOpenLoadMenu}
+              aria-label="Load a saved review from disk"
               title="Load a saved review"
-              className="px-1.5 py-1 text-gray-400 hover:text-gray-200 text-base rounded hover:bg-gray-700"
+              className="inline-flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-white hover:bg-gray-600 border border-transparent hover:border-gray-500"
             >
-              📂
+              <IconFolderLoad className={toolbarIconOnlyClass} />
             </button>
           </div>
 
@@ -314,16 +449,34 @@ export default function RightPanel() {
               ref={stemInputRef}
               value={reviewStem}
               onChange={(e) => setReviewStem(e.target.value.replace(/[\\/]/g, ""))}
-              onBlur={() => setEditingStem(false)}
+              onBlur={() => {
+                if (skipBlurCommitRef.current) {
+                  skipBlurCommitRef.current = false;
+                  return;
+                }
+                commitStemEdit();
+              }}
               onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === "Escape") setEditingStem(false);
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  commitStemEdit();
+                } else if (e.key === "Escape") {
+                  e.preventDefault();
+                  cancelStemEdit();
+                }
               }}
               className="flex-1 text-xs text-gray-200 font-mono bg-gray-700 border border-blue-500 rounded px-1 py-0.5 focus:outline-none min-w-0"
               spellCheck={false}
             />
           ) : (
             <button
-              onClick={() => { setEditingStem(true); setTimeout(() => stemInputRef.current?.select(), 0); }}
+              type="button"
+              onClick={() => {
+                skipBlurCommitRef.current = false;
+                stemSnapshotRef.current = reviewStem.trim() || "review_comments";
+                setEditingStem(true);
+                setTimeout(() => stemInputRef.current?.select(), 0);
+              }}
               className="flex-1 text-xs text-gray-400 hover:text-gray-200 font-mono truncate text-left"
               title="Click to rename"
             >
@@ -331,14 +484,20 @@ export default function RightPanel() {
             </button>
           )}
 
-          {/* Save button — icon only */}
+          {/* Save — icon only */}
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || comments.length === 0}
+            aria-label="Save review to JSON and Markdown on disk"
             title="Save review"
-            className="px-1.5 py-1 text-gray-400 hover:text-blue-400 disabled:opacity-40 text-base rounded hover:bg-gray-700 transition-colors"
+            className="inline-flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-blue-300 disabled:opacity-40 hover:bg-gray-600 border border-transparent hover:border-gray-500 transition-colors"
           >
-            {saving ? "⏳" : "💾"}
+            {saving ? (
+              <IconRefresh className={`${toolbarIconOnlyClass} animate-spin`} />
+            ) : (
+              <IconSaveToDisk className={toolbarIconOnlyClass} />
+            )}
           </button>
         </div>
       </div>

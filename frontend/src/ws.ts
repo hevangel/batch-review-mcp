@@ -41,7 +41,7 @@ export function useWebSocket(): void {
         switch (evt.type) {
           case "open_file": {
             const p = evt.payload as OpenFilePayload;
-            store.openFile(p.path, p.mode ?? "view");
+            store.openFileFromServer(p.path, p.mode ?? "view");
             break;
           }
           case "add_comment": {

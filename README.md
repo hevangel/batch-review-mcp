@@ -208,20 +208,23 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `add_comment(...)` | Add a review comment; shows a short notice in the UI |
 | `update_comment(comment_id, text)` | Edit comment body; UI notice |
 | `delete_comment(id)` | Delete a comment; UI notice |
+| `clear_all_comments()` | Remove every in-memory comment at once; UI notice |
+| `delete_outdated_comments()` | Remove comments with ``outdated`` true; UI notice |
 | `list_comments()` | List all in-memory comments |
+| `recompute_comment_stale()` | Re-scan files vs ``highlighted_text`` and set each comment's ``outdated`` flag; UI notice |
 | `list_review_files()` | List stems of `*.json` reviews in `output_dir` |
 | `load_review_by_stem(stem)` | Replace comments from `{stem}.json`; UI notice |
 | `save_comments(output_stem?, output_dir?)` | Save JSON + Markdown report, returns paths |
 | `get_file_content(path)` | Read file content as structured data (`content`, `line_count`, `language`, `path`) when diff context alone is not enough |
 | `list_directory(path)` | Minimal repo navigation helper for hosts that want the review file tree |
-| `open_file_in_ui(path, mode)` | Open a file in the browser center panel (`view` or `diff`) |
+| `open_file_in_ui(path, mode)` | Open a file in the center panel (`view` or `diff`); same path+mode refreshes the view |
 | `highlight_in_ui(path, line_start, line_end)` | Open a file and highlight a 1-based line range in the UI |
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
 | `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
 | `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
 | *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`) |
 
-Comment **add**, **update**, **delete**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
+Comment **add**, **update**, **delete**, **clear_all_comments**, **delete_outdated_comments**, **recompute_comment_stale**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 
 ---
 
@@ -238,6 +241,8 @@ Comment **add**, **update**, **delete**, and **load_review_by_stem** also push a
     "line_end": 55,
     "reference": "@src/auth.py:L42-55",
     "text": "Token is never validated — add expiry check.",
+    "highlighted_text": "…",
+    "outdated": false,
     "created_at": "2026-04-15T10:00:00+00:00"
   }
 ]

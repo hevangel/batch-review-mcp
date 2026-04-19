@@ -4,6 +4,7 @@ import remarkGfm from "remark-gfm";
 import type { Components } from "react-markdown";
 import { useStore } from "../../store";
 import { createComment } from "../../api";
+import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface MarkdownViewerProps {
   content: string;
@@ -75,6 +76,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const addCommentToStore = useStore((s) => s.addComment);
   const activeHighlight = useStore((s) => s.activeHighlight);
+  const bumpCenterReload = useStore((s) => s.bumpCenterReload);
 
   // Scroll / highlight when activeHighlight or rendered markdown changes.
   // useLayoutEffect so DOM from ReactMarkdown is present (mirrors CodeViewer onMount fix).
@@ -154,15 +156,30 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   return (
     <div className="flex flex-col h-full">
       {/* Toolbar — matches CodeViewer */}
-      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0">
-        <span className="text-xs text-gray-400 font-mono truncate">{filePath}</span>
-        <button
-          onClick={() => handleAdd()}
-          title="Add Comment (Ctrl+Alt+C)"
-          className="ml-2 px-2 py-0.5 bg-blue-700 hover:bg-blue-600 text-white text-xs rounded shrink-0"
-        >
-          + Add Comment
-        </button>
+      <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0 gap-2">
+        <span className="text-xs text-gray-400 font-mono truncate min-w-0">{filePath}</span>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => bumpCenterReload()}
+            aria-label="Reload: fetch the latest file content from disk"
+            title="Reload from disk (after the file changes on disk)"
+            className={toolbarBtnNeutral}
+          >
+            <IconRefresh className={toolbarIconClass} />
+            <span>Reload</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleAdd()}
+            aria-label="Add comment from current text selection (Ctrl+Alt+C)"
+            title="Add Comment (Ctrl+Alt+C)"
+            className={toolbarBtnPrimary}
+          >
+            <IconPlus className={toolbarIconClass} />
+            <span>Add</span>
+          </button>
+        </div>
       </div>
 
       {/* Scrollable markdown body — colors match Monaco vs-dark (see index.css) */}

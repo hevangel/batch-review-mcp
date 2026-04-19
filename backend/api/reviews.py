@@ -37,6 +37,44 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
     return comment
 
 
+@router.post("/recompute-stale", response_model=list[Comment])
+async def recompute_comment_stale() -> list[Comment]:
+    """Re-scan files and set ``outdated`` on each comment; broadcast full list to clients."""
+    state = get_state()
+    state.recompute_all_comment_outdated()
+    comments = list(state.comments.values())
+    await state.broadcast(
+        WsEvent(
+            type="refresh_comments",
+            payload=[c.model_dump() for c in comments],
+        )
+    )
+    return comments
+
+
+@router.delete("/clear", status_code=204)
+async def clear_all_comments() -> None:
+    """Remove all in-memory comments and broadcast an empty list to WebSocket clients."""
+    state = get_state()
+    state.clear_all_comments()
+    await state.broadcast(WsEvent(type="refresh_comments", payload=[]))
+
+
+@router.delete("/outdated", response_model=list[Comment])
+async def delete_outdated_comments() -> list[Comment]:
+    """Remove every comment with ``outdated`` true; broadcast the remaining list."""
+    state = get_state()
+    state.delete_outdated_comments()
+    remaining = list(state.comments.values())
+    await state.broadcast(
+        WsEvent(
+            type="refresh_comments",
+            payload=[c.model_dump() for c in remaining],
+        )
+    )
+    return remaining
+
+
 @router.patch("/{comment_id}", response_model=Comment)
 async def update_comment(comment_id: str, body: dict) -> Comment:
     """Update the text of an existing comment."""
@@ -91,6 +129,7 @@ async def bulk_load_comments(body: BulkLoadRequest) -> list[Comment]:
         state.comments.clear()
     for c in body.comments:
         state.comments[c.id] = c
+    state.recompute_all_comment_outdated()
     all_comments = list(state.comments.values())
     await state.broadcast(
         WsEvent(
@@ -139,6 +178,8 @@ async def load_review_by_stem(body: dict) -> JSONResponse:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Failed to read file: {exc}") from exc
+    state.recompute_all_comment_outdated()
+    loaded = list(state.comments.values())
     await state.broadcast(
         WsEvent(
             type="refresh_comments",

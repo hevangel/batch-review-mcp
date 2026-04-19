@@ -101,9 +101,15 @@ export default function CommentBox({
     }
   };
 
+  const outdated = Boolean(comment.outdated);
+
   return (
     <div
-      className="bg-gray-800 border border-gray-700 rounded-lg p-3 flex flex-col gap-2"
+      className={`bg-gray-800 border rounded-lg p-3 flex flex-col gap-2 ${
+        outdated
+          ? "border-rose-500/70 ring-1 ring-rose-400/40 bg-rose-950/20"
+          : "border-gray-700"
+      }`}
       draggable={draggable}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
@@ -122,8 +128,16 @@ export default function CommentBox({
         ) : <span className="shrink-0 w-4" />}
         <button
           onClick={handleReferenceClick}
-          className="flex-1 text-blue-400 hover:text-blue-300 text-xs font-mono text-center break-all leading-tight"
-          title="Jump to this location in the file"
+          className={`flex-1 text-xs font-mono text-center break-all leading-tight ${
+            outdated
+              ? "text-rose-200/90 line-through decoration-rose-300 decoration-2 hover:text-rose-100"
+              : "text-blue-400 hover:text-blue-300"
+          }`}
+          title={
+            outdated
+              ? "Jump to location (highlighted source may have changed)"
+              : "Jump to this location in the file"
+          }
         >
           {comment.reference}
         </button>
@@ -137,6 +151,12 @@ export default function CommentBox({
         </button>
       </div>
 
+      {outdated && (
+        <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-300 bg-rose-950/50 border border-rose-600/50 rounded px-2 py-1">
+          Outdated — highlighted source no longer matches this range
+        </div>
+      )}
+
       {/* Comment textarea – auto-resizes up to 50vh */}
       <textarea
         ref={textareaRef}
@@ -145,7 +165,11 @@ export default function CommentBox({
         onBlur={handleBlur}
         placeholder="Add your review comment…"
         rows={1}
-        className="w-full bg-gray-700 text-gray-100 text-sm placeholder-gray-500 rounded px-2 py-1.5 resize-none border border-gray-600 focus:outline-none focus:border-blue-500 overflow-hidden"
+        className={`w-full text-sm rounded px-2 py-1.5 resize-none focus:outline-none overflow-hidden ${
+          outdated
+            ? "bg-rose-950/40 text-rose-100/90 line-through decoration-rose-300 decoration-2 border border-rose-700/60 focus:border-rose-500 placeholder-rose-300/50"
+            : "bg-gray-700 text-gray-100 placeholder-gray-500 border border-gray-600 focus:border-blue-500"
+        }`}
       />
 
       {saving && (
