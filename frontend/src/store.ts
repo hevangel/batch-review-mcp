@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Comment, HighlightPayload, LeftTab, ViewMode } from "./types";
+import type { Comment, HighlightPayload, LeftTab, McpSessionPayload, ViewMode } from "./types";
 
 interface SelectionRange {
   line_start: number;
@@ -52,6 +52,10 @@ interface AppStore {
   /** Short-lived MCP / agent toast (right panel footer) */
   agentNotice: string | null;
   setAgentNotice: (msg: string | null) => void;
+
+  /** Registered MCP client (coding host + model), from init tool or /api/config */
+  mcpSession: McpSessionPayload | null;
+  setMcpSession: (s: McpSessionPayload | null) => void;
 }
 
 export const useStore = create<AppStore>((set) => ({
@@ -123,4 +127,7 @@ export const useStore = create<AppStore>((set) => ({
 
   agentNotice: null,
   setAgentNotice: (msg) => set({ agentNotice: msg }),
+
+  mcpSession: null,
+  setMcpSession: (s) => set({ mcpSession: s }),
 }));

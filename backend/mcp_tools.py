@@ -16,15 +16,17 @@ from backend.models import WsEvent
 mcp = FastMCP(
     name="Batch Review",
     instructions=(
-        "Review-first tools for markdown files and code changes in a git repository. "
-        "Start with git review context via get_git_changes() and get_git_diff(path), then use "
-        "structured file reads only when extra context is needed. Manage review comments "
+        "**Before any other Batch Review MCP tool** (except ``get_config``, ``get_review_web_url``, "
+        "or reading resource ``batch-review://server/urls``), call ``init_batch_review_session`` once "
+        "per connection with ``coding_agent`` (e.g. Cursor, Claude Desktop) and optional ``model_name``. "
+        "The server rejects other tools until init succeeds. "
+        "Then use git review context via get_git_changes() and get_git_diff(path), and structured "
+        "file reads only when extra context is needed. Manage review comments "
         "(add, update, delete, clear all, delete outdated, list, recompute stale, load saved reviews, save), drive the shared browser UI "
         "(open, highlight, jump — repeat open_file_in_ui for the same path refreshes the view), read server config, and get the web UI URL. "
-        "Directory listing is provided only as a navigation helper, not as a general-purpose "
-        "filesystem API. The MCP resource ``batch-review://server/urls`` exposes the same "
-        "connection URLs as JSON for hosts that read resources. UI-mutating tools broadcast "
-        "WebSocket events; comment mutations also show a short notice in the browser."
+        "Directory listing is only a navigation helper, not a general-purpose filesystem API. "
+        "The MCP resource ``batch-review://server/urls`` mirrors connection URLs as JSON. "
+        "UI-mutating tools broadcast WebSocket events; comment mutations also show a short notice in the browser."
     ),
 )
 
@@ -36,6 +38,14 @@ mcp = FastMCP(
 def _state():
     from backend.state import get_state
     return get_state()
+
+
+def _require_mcp_session() -> None:
+    if not _state().mcp_session_initialized:
+        raise RuntimeError(
+            "MCP session not initialized. Call init_batch_review_session(coding_agent=..., "
+            "model_name=... (optional), client_version=... (optional)) once before other Batch Review tools."
+        )
 
 
 async def _agent_notice(state, message: str) -> None:
@@ -63,6 +73,44 @@ def _review_connection_urls() -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Session init (must run before other tools; not gated)
+# ---------------------------------------------------------------------------
+
+@mcp.tool
+async def init_batch_review_session(
+    coding_agent: str,
+    model_name: str = "",
+    client_version: str = "",
+) -> dict:
+    """Register the host and model using this MCP server for this process.
+
+    Call **once at the start of a session** before ``get_git_changes``, ``add_comment``,
+    ``open_file_in_ui``, or any other Batch Review tool (except ``get_config``,
+    ``get_review_web_url``, or resource ``batch-review://server/urls``).
+
+    Args:
+        coding_agent: Client or editor name (e.g. ``Cursor``, ``Claude Desktop``, ``VS Code``).
+        model_name: Active model id if known; empty string if unknown.
+        client_version: Optional host version string.
+
+    Returns:
+        Dict with ``ok`` true and the stored ``coding_agent``, ``model_name``, ``client_version``,
+        or ``{"error": "..."}`` if ``coding_agent`` is missing.
+    """
+    state = _state()
+    try:
+        info = state.register_mcp_session(
+            coding_agent=coding_agent,
+            model_name=model_name,
+            client_version=client_version,
+        )
+    except ValueError as exc:
+        return {"error": str(exc)}
+    await state.broadcast(WsEvent(type="mcp_session", payload=dict(info)))
+    return {"ok": True, **info}
+
+
+# ---------------------------------------------------------------------------
 # File system tools
 # ---------------------------------------------------------------------------
 
@@ -76,6 +124,7 @@ def list_directory(path: str = ".") -> list[dict]:
     Returns:
         List of FileInfo dicts with keys: name, path, is_dir, language, children.
     """
+    _require_mcp_session()
     from backend.api.files import _build_tree
     state = _state()
     try:
@@ -98,6 +147,7 @@ def get_file_content(path: str) -> dict:
     Returns:
         Dict with keys: content, line_count, language, path. On error, {"error": "..."}.
     """
+    _require_mcp_session()
     from backend.api.files import file_content_model_for_path
 
     try:
@@ -123,6 +173,7 @@ def get_git_changes() -> list[dict]:
         List of GitChange dicts with keys: path, status.
         Status values: M=modified, A=added, D=deleted, R=renamed, ?=untracked.
     """
+    _require_mcp_session()
     from backend.api.git_ops import git_changes
     changes = git_changes()
     return [c.model_dump() for c in changes]
@@ -138,6 +189,7 @@ def get_git_diff(path: str) -> dict:
     Returns:
         Dict with keys: path, original (HEAD content), modified (working tree), diff (unified).
     """
+    _require_mcp_session()
     from backend.api.git_ops import git_diff
     result = git_diff(path=path)
     return result.model_dump()
@@ -161,6 +213,7 @@ async def open_file_in_ui(path: str, mode: str = "view") -> str:
     Returns:
         Confirmation message.
     """
+    _require_mcp_session()
     state = _state()
     await state.broadcast(WsEvent(type="open_file", payload={"path": path, "mode": mode}))
     return f"Opened {path} in UI (mode={mode})"
@@ -178,6 +231,7 @@ async def highlight_in_ui(path: str, line_start: int, line_end: int) -> str:
     Returns:
         Confirmation message.
     """
+    _require_mcp_session()
     state = _state()
     await state.broadcast(
         WsEvent(
@@ -195,6 +249,7 @@ async def jump_to_comment_in_ui(comment_id: str) -> str:
     Args:
         comment_id: UUID of an existing comment from list_comments.
     """
+    _require_mcp_session()
     state = _state()
     comment = state.comments.get(comment_id)
     if comment is None:
@@ -244,6 +299,7 @@ async def add_comment(
     Returns:
         The created Comment as a dict.
     """
+    _require_mcp_session()
     state = _state()
     comment = state.add_comment(
         file_path=file_path,
@@ -268,6 +324,7 @@ def list_comments() -> list[dict]:
     Returns:
         List of Comment dicts.
     """
+    _require_mcp_session()
     state = _state()
     return [c.model_dump() for c in state.comments.values()]
 
@@ -282,6 +339,7 @@ async def recompute_comment_stale() -> list[dict]:
     Returns:
         List of Comment dicts (including updated ``outdated`` booleans).
     """
+    _require_mcp_session()
     state = _state()
     state.recompute_all_comment_outdated()
     comments = list(state.comments.values())
@@ -305,6 +363,7 @@ async def delete_comment(comment_id: str) -> str:
     Returns:
         Confirmation or error message.
     """
+    _require_mcp_session()
     state = _state()
     if state.delete_comment(comment_id):
         await state.broadcast(WsEvent(type="delete_comment", payload={"id": comment_id}))
@@ -323,6 +382,7 @@ async def clear_all_comments() -> str:
     Returns:
         A short confirmation including how many comments were removed.
     """
+    _require_mcp_session()
     state = _state()
     n = state.clear_all_comments()
     await state.broadcast(WsEvent(type="refresh_comments", payload=[]))
@@ -339,6 +399,7 @@ async def delete_outdated_comments() -> str:
     Returns:
         Short confirmation with how many comments were removed.
     """
+    _require_mcp_session()
     state = _state()
     n = state.delete_outdated_comments()
     remaining = list(state.comments.values())
@@ -363,6 +424,7 @@ async def update_comment(comment_id: str, text: str) -> dict:
     Returns:
         Updated Comment dict, or {\"error\": \"...\"} if not found.
     """
+    _require_mcp_session()
     state = _state()
     updated = state.update_comment_text(comment_id, text)
     if updated is None:
@@ -386,18 +448,20 @@ def save_comments(
     Returns:
         Dict with keys: json_path, md_path, comments (list of comment dicts).
     """
+    _require_mcp_session()
     state = _state()
     return state.save_comments(output_stem=output_stem, output_dir=output_dir)
 
 
 @mcp.tool
 def get_config() -> dict:
-    """Return save/load defaults and the web UI base URL when known."""
+    """Return save/load defaults, the web UI base URL when known, and MCP session metadata if any."""
     state = _state()
     return {
         "output_stem": state.output_stem,
         "output_dir": str(state.output_dir),
         "web_ui_url": state.web_app_url,
+        "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
     }
 
 
@@ -430,6 +494,7 @@ def resource_batch_review_server_urls() -> str:
 @mcp.tool
 def list_review_files() -> list[str]:
     """List base names of saved ``*.json`` review files in output_dir (for load_review_by_stem)."""
+    _require_mcp_session()
     state = _state()
     return state.list_review_stems()
 
@@ -444,6 +509,7 @@ async def load_review_by_stem(stem: str) -> list[dict]:
     Returns:
         List of loaded Comment dicts, or ``[{\"error\": \"...\"}]`` on failure.
     """
+    _require_mcp_session()
     state = _state()
     try:
         loaded = state.load_review_from_stem(stem)

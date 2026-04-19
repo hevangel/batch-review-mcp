@@ -33,6 +33,27 @@ async def main() -> None:
             print(f"OK: {len(names)} tools", flush=True)
             for n in names:
                 print(f"  - {n}", flush=True)
+
+            gated = await session.call_tool("get_git_changes", {})
+            if not gated.isError:
+                print("FAILED: get_git_changes should be rejected before init", flush=True)
+                raise SystemExit(1)
+            print("OK: gated tool rejected before init", flush=True)
+
+            init_res = await session.call_tool(
+                "init_batch_review_session",
+                {"coding_agent": "MCP stdio smoke test", "model_name": ""},
+            )
+            if init_res.isError:
+                print(f"FAILED: init_batch_review_session: {init_res}", flush=True)
+                raise SystemExit(1)
+            print("OK: init_batch_review_session", flush=True)
+
+            after = await session.call_tool("get_git_changes", {})
+            if after.isError:
+                print(f"FAILED: get_git_changes after init: {after}", flush=True)
+                raise SystemExit(1)
+            print("OK: get_git_changes after init", flush=True)
             rlist = await session.list_resources()
             print(f"OK: {len(rlist.resources)} resources", flush=True)
             for r in rlist.resources:

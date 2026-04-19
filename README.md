@@ -203,6 +203,7 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 
 | Tool | Description |
 |---|---|
+| `init_batch_review_session(coding_agent, model_name?, client_version?)` | **Call first** once per MCP connection; registers the host and model. Other tools return an error until this succeeds (except `get_config`, `get_review_web_url`, and resource `batch-review://server/urls`). |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
 | `add_comment(...)` | Add a review comment; shows a short notice in the UI |
@@ -222,7 +223,9 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
 | `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
 | `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
-| *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`) |
+| *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`); readable **before** `init_batch_review_session` |
+
+Agents should call **`init_batch_review_session`** immediately after connecting (with a non-empty `coding_agent`, e.g. `Cursor` or `Claude Desktop`). The server enforces this: calling any other tool first yields a clear “call init…” error.
 
 Comment **add**, **update**, **delete**, **clear_all_comments**, **delete_outdated_comments**, **recompute_comment_stale**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 

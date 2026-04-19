@@ -4,8 +4,10 @@ import { listFiles, getGitChanges } from "../../api";
 import { useStore } from "../../store";
 import FileExplorer from "./FileExplorer";
 import GitChanges from "./GitChanges";
+import { PANEL_BOTTOM_BAR_CLASS } from "../ui/panelBottomBar";
 
 export default function LeftPanel() {
+  const mcpSession = useStore((s) => s.mcpSession);
   const activeTab = useStore((s) => s.activeTab);
   const setActiveTab = useStore((s) => s.setActiveTab);
   const filesVersion = useStore((s) => s.filesVersion);
@@ -123,7 +125,7 @@ export default function LeftPanel() {
       </div>
 
       {/* Panel content */}
-      <div className="flex-1 overflow-hidden">
+      <div className="flex-1 overflow-hidden min-h-0">
         {activeTab === "files" ? (
           <FileExplorer
             files={files}
@@ -137,6 +139,23 @@ export default function LeftPanel() {
             error={changesError}
           />
         )}
+      </div>
+
+      <div className={PANEL_BOTTOM_BAR_CLASS}>
+        <div className="min-w-0 flex-1 text-xs leading-snug">
+          {mcpSession ? (
+            <p className="truncate" title={`${mcpSession.coding_agent}${mcpSession.model_name ? ` — ${mcpSession.model_name}` : ""}${mcpSession.client_version ? ` (${mcpSession.client_version})` : ""}`}>
+              <span className="text-gray-200 font-medium">{mcpSession.coding_agent}</span>
+              {mcpSession.model_name ? (
+                <span className="text-gray-400"> · {mcpSession.model_name}</span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="text-gray-500 truncate" title="Call init_batch_review_session from your MCP client">
+              No MCP session yet
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

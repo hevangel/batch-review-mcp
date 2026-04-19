@@ -65,7 +65,7 @@ class BulkLoadRequest(BaseModel):
 
 class WsEvent(BaseModel):
     """WebSocket event. ``type`` is one of: open_file, add_comment, delete_comment, highlight,
-    refresh_comments, refresh_files, close_file, set_left_tab, agent_notice."""
+    refresh_comments, refresh_files, close_file, set_left_tab, agent_notice, mcp_session."""
 
     type: str
     payload: Any = None

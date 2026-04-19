@@ -32,10 +32,33 @@ class AppState:
         self.ws_connections: set[WebSocket] = set()
         #: Base URL of the web UI (``http://host:port``), set when the HTTP server binds.
         self.web_app_url: str | None = None
+        #: Set when the MCP client calls ``init_batch_review_session`` (not used by REST).
+        self.mcp_session_initialized: bool = False
+        self.mcp_session_info: dict[str, str] | None = None
 
     # ------------------------------------------------------------------
     # Path helpers
     # ------------------------------------------------------------------
+
+    def register_mcp_session(
+        self,
+        coding_agent: str,
+        model_name: str = "",
+        client_version: str = "",
+    ) -> dict[str, str]:
+        """Record which host and model are using MCP; enables other MCP tools for this process."""
+        agent = (coding_agent or "").strip()
+        if not agent:
+            raise ValueError("coding_agent must be a non-empty string")
+        info: dict[str, str] = {
+            "coding_agent": agent,
+            "model_name": (model_name or "").strip(),
+            "client_version": (client_version or "").strip(),
+        }
+        self.mcp_session_info = info
+        self.mcp_session_initialized = True
+        logger.info("MCP session registered: %s", info)
+        return dict(info)
 
     def resolve_safe_path(self, rel_or_abs: str) -> Path:
         """Resolve a path and verify it stays within repo_root.

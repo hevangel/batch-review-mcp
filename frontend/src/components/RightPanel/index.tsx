@@ -21,6 +21,7 @@ import {
   toolbarIconClass,
   toolbarIconOnlyClass,
 } from "../ui/toolbarIcons";
+import { PANEL_BOTTOM_BAR_CLASS } from "../ui/panelBottomBar";
 
 type FilterMode = "all" | "file" | "folder" | "folder-deep";
 
@@ -389,116 +390,118 @@ export default function RightPanel() {
         )}
       </div>
 
-      {/* Footer */}
-      <div className="shrink-0 border-t border-gray-700 px-3 py-2 flex flex-col gap-1.5" onKeyDown={handleLoadMenuKey}>
-        {agentNotice && (
-          <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative border border-blue-600/40">
-            <button
-              type="button"
-              onClick={() => setAgentNotice(null)}
-              className="absolute top-1 right-1.5 text-gray-500 hover:text-gray-300 text-xs leading-none"
-              title="Dismiss"
-            >
-              ✕
-            </button>
-            <p className="text-xs text-blue-300 truncate pr-4" title={agentNotice}>
-              {agentNotice}
-            </p>
-          </div>
-        )}
-        {/* Saved paths — dismissible */}
-        {savedPaths && (
-          <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative">
-            <button
-              onClick={() => setSavedPaths(null)}
-              className="absolute top-1 right-1.5 text-gray-500 hover:text-gray-300 text-xs leading-none"
-              title="Dismiss"
-            >
-              ✕
-            </button>
-            <p className="text-xs text-green-400 truncate pr-4" title={savedPaths.json}>
-              JSON: {savedPaths.json}
-            </p>
-            <p className="text-xs text-green-400 truncate pr-4" title={savedPaths.md}>
-              MD: {savedPaths.md}
-            </p>
-          </div>
-        )}
-        {saveError && (
-          <p className="text-xs text-red-400">{saveError}</p>
-        )}
-
-        {/* Action row: load · filename · save */}
-        <div className="flex items-center gap-1.5">
-          {/* Load button */}
-          <div className="relative" ref={loadMenuRef}>
-            <button
-              type="button"
-              ref={loadBtnRef}
-              onClick={handleOpenLoadMenu}
-              aria-label="Load a saved review from disk"
-              title="Load a saved review"
-              className="inline-flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-white hover:bg-gray-600 border border-transparent hover:border-gray-500"
-            >
-              <IconFolderLoad className={toolbarIconOnlyClass} />
-            </button>
-          </div>
-
-          {editingStem ? (
-            <input
-              ref={stemInputRef}
-              value={reviewStem}
-              onChange={(e) => setReviewStem(e.target.value.replace(/[\\/]/g, ""))}
-              onBlur={() => {
-                if (skipBlurCommitRef.current) {
-                  skipBlurCommitRef.current = false;
-                  return;
-                }
-                commitStemEdit();
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  commitStemEdit();
-                } else if (e.key === "Escape") {
-                  e.preventDefault();
-                  cancelStemEdit();
-                }
-              }}
-              className="flex-1 text-xs text-gray-200 font-mono bg-gray-700 border border-blue-500 rounded px-1 py-0.5 focus:outline-none min-w-0"
-              spellCheck={false}
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                skipBlurCommitRef.current = false;
-                stemSnapshotRef.current = reviewStem.trim() || "review_comments";
-                setEditingStem(true);
-                setTimeout(() => stemInputRef.current?.select(), 0);
-              }}
-              className="flex-1 text-xs text-gray-400 hover:text-gray-200 font-mono truncate text-left"
-              title="Click to rename"
-            >
-              {reviewStem}
-            </button>
-          )}
-
-          {/* Save — icon only */}
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving || comments.length === 0}
-            aria-label="Save review to JSON and Markdown on disk"
-            title="Save review"
-            className="inline-flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-blue-300 disabled:opacity-40 hover:bg-gray-600 border border-transparent hover:border-gray-500 transition-colors"
-          >
-            {saving ? (
-              <IconRefresh className={`${toolbarIconOnlyClass} animate-spin`} />
-            ) : (
-              <IconSaveToDisk className={toolbarIconOnlyClass} />
+      {/* Footer: messages above a fixed-height bottom bar (matches left panel strip) */}
+      <div className="shrink-0 flex flex-col" onKeyDown={handleLoadMenuKey}>
+        {(agentNotice || savedPaths || saveError) && (
+          <div className="shrink-0 border-t border-gray-700 px-3 py-2 flex flex-col gap-1.5">
+            {agentNotice && (
+              <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative border border-blue-600/40">
+                <button
+                  type="button"
+                  onClick={() => setAgentNotice(null)}
+                  className="absolute top-1 right-1.5 text-gray-500 hover:text-gray-300 text-xs leading-none"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+                <p className="text-xs text-blue-300 truncate pr-4" title={agentNotice}>
+                  {agentNotice}
+                </p>
+              </div>
             )}
-          </button>
+            {savedPaths && (
+              <div className="flex flex-col gap-0.5 bg-gray-900 rounded px-2 py-1.5 relative">
+                <button
+                  onClick={() => setSavedPaths(null)}
+                  className="absolute top-1 right-1.5 text-gray-500 hover:text-gray-300 text-xs leading-none"
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+                <p className="text-xs text-green-400 truncate pr-4" title={savedPaths.json}>
+                  JSON: {savedPaths.json}
+                </p>
+                <p className="text-xs text-green-400 truncate pr-4" title={savedPaths.md}>
+                  MD: {savedPaths.md}
+                </p>
+              </div>
+            )}
+            {saveError && (
+              <p className="text-xs text-red-400">{saveError}</p>
+            )}
+          </div>
+        )}
+
+        <div className={PANEL_BOTTOM_BAR_CLASS}>
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <div className="relative shrink-0" ref={loadMenuRef}>
+              <button
+                type="button"
+                ref={loadBtnRef}
+                onClick={handleOpenLoadMenu}
+                aria-label="Load a saved review from disk"
+                title="Load a saved review"
+                className="inline-flex items-center justify-center p-1.5 rounded text-gray-300 hover:text-white hover:bg-gray-600 border border-transparent hover:border-gray-500"
+              >
+                <IconFolderLoad className={toolbarIconOnlyClass} />
+              </button>
+            </div>
+
+            {editingStem ? (
+              <input
+                ref={stemInputRef}
+                value={reviewStem}
+                onChange={(e) => setReviewStem(e.target.value.replace(/[\\/]/g, ""))}
+                onBlur={() => {
+                  if (skipBlurCommitRef.current) {
+                    skipBlurCommitRef.current = false;
+                    return;
+                  }
+                  commitStemEdit();
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    commitStemEdit();
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    cancelStemEdit();
+                  }
+                }}
+                className="flex-1 text-xs text-gray-200 font-mono bg-gray-700 border border-blue-500 rounded px-1 py-0.5 focus:outline-none min-w-0"
+                spellCheck={false}
+              />
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  skipBlurCommitRef.current = false;
+                  stemSnapshotRef.current = reviewStem.trim() || "review_comments";
+                  setEditingStem(true);
+                  setTimeout(() => stemInputRef.current?.select(), 0);
+                }}
+                className="flex-1 text-xs text-gray-400 hover:text-gray-200 font-mono truncate text-left min-w-0"
+                title="Click to rename"
+              >
+                {reviewStem}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSave}
+              disabled={saving || comments.length === 0}
+              aria-label="Save review to JSON and Markdown on disk"
+              title="Save review"
+              className="inline-flex shrink-0 items-center justify-center p-1.5 rounded text-gray-300 hover:text-blue-300 disabled:opacity-40 hover:bg-gray-600 border border-transparent hover:border-gray-500 transition-colors"
+            >
+              {saving ? (
+                <IconRefresh className={`${toolbarIconOnlyClass} animate-spin`} />
+              ) : (
+                <IconSaveToDisk className={toolbarIconOnlyClass} />
+              )}
+            </button>
+          </div>
         </div>
       </div>
 

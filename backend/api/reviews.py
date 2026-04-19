@@ -147,13 +147,14 @@ async def bulk_load_comments(body: BulkLoadRequest) -> list[Comment]:
 
 @util_router.get("/config")
 def get_config() -> JSONResponse:
-    """Return the current server configuration (output_stem, output_dir, web_ui_url)."""
+    """Return the current server configuration (output_stem, output_dir, web_ui_url, mcp_session)."""
     state = get_state()
     return JSONResponse(
         {
             "output_stem": state.output_stem,
             "output_dir": str(state.output_dir),
             "web_ui_url": state.web_app_url,
+            "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
         }
     )
 

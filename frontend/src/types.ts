@@ -56,7 +56,8 @@ export type WsEventType =
   | "refresh_files"
   | "close_file"
   | "set_left_tab"
-  | "agent_notice";
+  | "agent_notice"
+  | "mcp_session";
 
 export interface WsEvent<T = unknown> {
   type: WsEventType;
@@ -84,6 +85,13 @@ export interface DeleteCommentPayload {
 
 export interface AgentNoticePayload {
   message: string;
+}
+
+/** Payload for ``mcp_session`` WebSocket events (matches MCP ``init_batch_review_session``). */
+export interface McpSessionPayload {
+  coding_agent: string;
+  model_name: string;
+  client_version: string;
 }
 
 /** How the center panel is currently displaying content */

@@ -5,6 +5,7 @@ import type {
   DeleteCommentPayload,
   HighlightPayload,
   LeftTab,
+  McpSessionPayload,
   OpenFilePayload,
   WsEvent,
 } from "./types";
@@ -89,6 +90,17 @@ export function useWebSocket(): void {
             const n = evt.payload as AgentNoticePayload;
             if (n?.message) {
               store.setAgentNotice(n.message);
+            }
+            break;
+          }
+          case "mcp_session": {
+            const m = evt.payload as McpSessionPayload;
+            if (m?.coding_agent) {
+              store.setMcpSession({
+                coding_agent: m.coding_agent,
+                model_name: m.model_name ?? "",
+                client_version: m.client_version ?? "",
+              });
             }
             break;
           }

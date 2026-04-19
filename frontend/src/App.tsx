@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useStore } from "./store";
-import { listComments } from "./api";
+import { getConfig, listComments } from "./api";
 import { useWebSocket } from "./ws";
 import LeftPanel from "./components/LeftPanel/index";
 import CenterPanel from "./components/CenterPanel/index";
@@ -12,6 +12,7 @@ const DEFAULT_RIGHT = 320; // w-80
 
 export default function App() {
   const setComments = useStore((s) => s.setComments);
+  const setMcpSession = useStore((s) => s.setMcpSession);
   useWebSocket();
 
   useEffect(() => {
@@ -19,6 +20,12 @@ export default function App() {
       .then(setComments)
       .catch((e: Error) => console.error("Failed to load comments:", e));
   }, [setComments]);
+
+  useEffect(() => {
+    getConfig()
+      .then((cfg) => setMcpSession(cfg.mcp_session ?? null))
+      .catch(() => {});
+  }, [setMcpSession]);
 
   const [leftW, setLeftW] = useState(DEFAULT_LEFT);
   const [rightW, setRightW] = useState(DEFAULT_RIGHT);
