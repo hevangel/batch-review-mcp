@@ -2,7 +2,7 @@
 
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
-![Batch Review UI — file tree on the left, rendered Markdown in the centre, and AI-generated review comments on the right](docs/screenshot.png)
+![Batch Review UI — file tree on the left, rendered Markdown in the centre, and AI-generated review comments on the right](https://raw.githubusercontent.com/hevangel/batch-review-mcp/main/docs/screenshot.png)
 
 ---
 
@@ -18,7 +18,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | **Structured comments** | Each comment captures `@filename:L10-15` line references automatically |
 | **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
-| **Resume session** | On startup, if `<output-dir>/<output>.json` already exists, comments are loaded automatically |
+| **Resume session** | On startup, if `{output-dir}/{output}.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
 
 ---
@@ -95,16 +95,16 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The entry uses **`registryType": "mcpb"`**: the download URL must be a **public** GitHub release asset, and **`fileSha256`** must match those bytes **exactly** (the [Release](.github/workflows/release.yml) workflow builds the `.mcpb` on **Linux**, which can differ from a pack produced on Windows).
 
-**Recommended order for a new version (e.g. `v0.4.0`):**
+**Recommended order for a new version (e.g. `v0.4.1`):**
 
-1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.4.0/batch-review-mcp-0.4.0.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so `npm exec` does not float to unrelated CLI majors; **byte-identical** `.mcpb` hashes can still differ from **ubuntu-latest** (Node/npm, line endings, etc.), so prefer the preflight SHA from GitHub Actions when cutting a release.
+1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.4.1/batch-review-mcp-0.4.1.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so `npm exec` does not float to unrelated CLI majors; **byte-identical** `.mcpb` hashes can still differ from **ubuntu-latest** (Node/npm, line endings, etc.), so prefer the preflight SHA from GitHub Actions when cutting a release.
 2. In GitHub **Actions**, run **[MCP registry preflight (Linux MCPB hash)](.github/workflows/mcp-registry-preflight.yml)** (`workflow_dispatch`). Open the job summary and copy the printed **SHA-256** into **`server.json`** → **`packages[0].fileSha256`**. Commit and push to `main`.
-3. Push the **tag** (e.g. `git tag v0.4.0 && git push origin v0.4.0`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
+3. Push the **tag** (e.g. `git tag v0.4.1 && git push origin v0.4.1`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
 4. After the release exists, run **`mcp-publisher publish`** (with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) and `mcp-publisher login github`). Optional: add **`PYPI_API_TOKEN`** so the same workflow can **`uv publish`** the wheel/sdist.
 
 If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
 rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
-(for example `v0.4.0`). That manual path checks out the tag you name, overlays the current
+(for example `v0.4.1`). That manual path checks out the tag you name, overlays the current
 release metadata from `main`, and reuses the existing tag name, so you can recover the
 release without moving the tag or rebuilding from a different code revision.
 
@@ -157,8 +157,8 @@ Each comment shows:
 - A delete button
 
 The **💾 Save Review** button saves all comments to:
-- `<output-dir>/<output>.json` — machine-readable JSON array
-- `<output-dir>/<output>.md` — human-readable Markdown report grouped by file
+- `{output-dir}/{output}.json` — machine-readable JSON array
+- `{output-dir}/{output}.md` — human-readable Markdown report grouped by file
 
 When the server starts, if that JSON file already exists it is **loaded into the session** so you can continue a saved review (invalid files are skipped with a log warning).
 
@@ -166,7 +166,7 @@ When the server starts, if that JSON file already exists it is **loaded into the
 
 ## MCP Tools
 
-AI agents connect via `http://localhost:<port>/mcp` (HTTP transport) or stdio (`--mcp` flag).
+AI agents connect via `http://localhost:PORT/mcp` (HTTP transport) or stdio (`--mcp` flag).
 
 The MCP surface is intentionally **review-first**. Batch Review is not trying to be a
 general repo browser or editor API; it is a shared review-state server for:
@@ -193,7 +193,7 @@ This repository includes checked-in defaults so common agents can use **Batch Re
 | **Cursor** (editor and `agent` CLI) | [`.cursor/mcp.json`](.cursor/mcp.json) | `mcpServers` with `"type": "stdio"` |
 | **VS Code / GitHub Copilot** | [`.vscode/mcp.json`](.vscode/mcp.json) | `servers` with `"type": "stdio"` ([reference](https://code.visualstudio.com/docs/copilot/reference/mcp-configuration)) |
 | **Claude Code** | [`.mcp.json`](.mcp.json) | Project `mcpServers` (stdio) |
-| **OpenAI Codex CLI** | [`.codex/config.toml`](.codex/config.toml) | `[mcp_servers.<name>]` stdio blocks (loaded for trusted projects) |
+| **OpenAI Codex CLI** | [`.codex/config.toml`](.codex/config.toml) | `[mcp_servers.NAME]` stdio blocks (loaded for trusted projects) |
 | **Gemini CLI** | [`.gemini/settings.json`](.gemini/settings.json) | Top-level `mcpServers` ([guide](https://google-gemini.github.io/gemini-cli/docs/tools/mcp-server.html)) |
 
 All definitions run `uv run batch-review --mcp --root . --skip-build` so the review root is the **workspace directory** hosts use as the server cwd. Cursor’s `agent` CLI does not always expand `${workspaceFolder}` inside `args`, so these configs use `"."` for `--root` (VS Code may still use `${workspaceFolder}` in `.vscode/mcp.json`, which that host expands).
