@@ -63,7 +63,7 @@ def create_app(
     app = FastAPI(
         title="Batch Review",
         description="Collaborative code and markdown review tool.",
-        version="0.3.2",
+        version="0.4.0",
         lifespan=combined_lifespan,
     )
 
