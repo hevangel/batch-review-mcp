@@ -16,13 +16,17 @@ import sys
 from pathlib import Path
 import zipfile
 
+# Pin so `npm exec` resolves the same MCPB packer on every machine and in GitHub Actions
+# (unpinned `@anthropic-ai/mcpb` produced different .mcpb bytes vs ubuntu-latest).
+MCPB_CLI_PACKAGE = "@anthropic-ai/mcpb@2.1.2"
+
 
 def _npm_cmd() -> str:
     return "npm.cmd" if sys.platform == "win32" else "npm"
 
 
 def _mcpb_cli(args: list[str], *, cwd: Path) -> None:
-    cmd = [_npm_cmd(), "exec", "--yes", "--package=@anthropic-ai/mcpb", "--", "mcpb", *args]
+    cmd = [_npm_cmd(), "exec", "--yes", f"--package={MCPB_CLI_PACKAGE}", "--", "mcpb", *args]
     subprocess.run(cmd, cwd=str(cwd), check=True)
 
 

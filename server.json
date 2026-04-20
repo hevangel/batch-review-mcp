@@ -8,12 +8,12 @@
     "url": "https://github.com/hevangel/batch-review-mcp",
     "source": "github"
   },
-  "version": "0.3.0",
+  "version": "0.3.1",
   "packages": [
     {
       "registryType": "mcpb",
-      "identifier": "https://github.com/hevangel/batch-review-mcp/releases/download/v0.3.0/batch-review-mcp-0.3.0.mcpb",
-      "fileSha256": "cc51882e22850a3c82b2259750dfa2237b85904a657c95cb97a1c223b07a7668",
+      "identifier": "https://github.com/hevangel/batch-review-mcp/releases/download/v0.3.1/batch-review-mcp-0.3.1.mcpb",
+      "fileSha256": "751b3635dd423f18e28e764382c5825c7845f6ad6ca04fb1f846a0369cd4c9a2",
       "transport": {
         "type": "stdio"
       }

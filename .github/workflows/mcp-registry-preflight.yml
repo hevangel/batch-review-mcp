@@ -42,4 +42,4 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           sha256sum dist/batch-review-mcp-*.mcpb | tee -a "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "Also ensure \`packages[0].identifier\` uses the tag you will push (e.g. \`.../releases/download/v0.3.0/batch-review-mcp-0.3.0.mcpb\`) and that \`pyproject.toml\` / \`server.json\` \`version\` match the tag without the leading \`v\`."
+          echo "Also ensure \`packages[0].identifier\` uses the tag you will push (e.g. \`.../releases/download/v0.3.1/batch-review-mcp-0.3.1.mcpb\`) and that \`pyproject.toml\` / \`server.json\` \`version\` match the tag without the leading \`v\`."

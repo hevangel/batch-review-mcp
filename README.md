@@ -87,16 +87,16 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The entry uses **`registryType": "mcpb"`**: the download URL must be a **public** GitHub release asset, and **`fileSha256`** must match those bytes **exactly** (the [Release](.github/workflows/release.yml) workflow builds the `.mcpb` on **Linux**, which can differ from a pack produced on Windows).
 
-**Recommended order for a new version (e.g. `v0.3.0`):**
+**Recommended order for a new version (e.g. `v0.3.1`):**
 
-1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.3.0/batch-review-mcp-0.3.0.mcpb`).
+1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.3.1/batch-review-mcp-0.3.1.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so local Linux/WSL builds match **GitHub Actions** more reliably; still prefer the preflight SHA from CI when in doubt.
 2. In GitHub **Actions**, run **[MCP registry preflight (Linux MCPB hash)](.github/workflows/mcp-registry-preflight.yml)** (`workflow_dispatch`). Open the job summary and copy the printed **SHA-256** into **`server.json`** → **`packages[0].fileSha256`**. Commit and push to `main`.
-3. Push the **tag** (e.g. `git tag v0.3.0 && git push origin v0.3.0`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
+3. Push the **tag** (e.g. `git tag v0.3.1 && git push origin v0.3.1`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
 4. After the release exists, run **`mcp-publisher publish`** (with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) and `mcp-publisher login github`). Optional: add **`PYPI_API_TOKEN`** so the same workflow can **`uv publish`** the wheel/sdist.
 
 If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
 rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
-(for example `v0.3.0`). That manual path checks out the tag you name, overlays the current
+(for example `v0.3.1`). That manual path checks out the tag you name, overlays the current
 release metadata from `main`, and reuses the existing tag name, so you can recover the
 release without moving the tag or rebuilding from a different code revision.
 
