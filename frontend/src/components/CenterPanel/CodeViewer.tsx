@@ -116,7 +116,7 @@ export default function CodeViewer({ content, language, filePath }: CodeViewerPr
             className={toolbarBtnPrimary}
           >
             <IconPlus className={toolbarIconClass} />
-            <span>Add</span>
+            <span>Add (Ctrl+Alt+C)</span>
           </button>
         </div>
       </div>

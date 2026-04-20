@@ -27,6 +27,8 @@ export interface Comment {
   region_y1?: number | null;
   region_x2?: number | null;
   region_y2?: number | null;
+  /** 1-based PDF page when ``region_*`` are normalized 0–1 on that page. */
+  pdf_page?: number | null;
   created_at: string;
   /** True when the file text at this range no longer matches highlighted_text. */
   outdated?: boolean;
@@ -77,6 +79,8 @@ export interface HighlightPayload {
   region_y1?: number | null;
   region_x2?: number | null;
   region_y2?: number | null;
+  pdf_page?: number | null;
+  highlighted_text?: string | null;
 }
 
 export interface DeleteCommentPayload {

@@ -59,6 +59,7 @@ export function createComment(
   text = "",
   highlighted_text = "",
   region?: { x1: number; y1: number; x2: number; y2: number },
+  pdf_page?: number,
 ): Promise<Comment> {
   return json<Comment>("/api/comments", {
     method: "POST",
@@ -69,12 +70,21 @@ export function createComment(
         region_x1: region.x1, region_y1: region.y1,
         region_x2: region.x2, region_y2: region.y2,
       } : {}),
+      ...(pdf_page != null ? { pdf_page } : {}),
     }),
   });
 }
 
 export function imageUrl(path: string, cacheBust?: number): string {
   let url = `${BASE}/api/image-content?path=${encodeURIComponent(path)}`;
+  if (cacheBust !== undefined) {
+    url += `&_cb=${encodeURIComponent(String(cacheBust))}`;
+  }
+  return url;
+}
+
+export function pdfUrl(path: string, cacheBust?: number): string {
+  let url = `${BASE}/api/pdf-content?path=${encodeURIComponent(path)}`;
   if (cacheBust !== undefined) {
     url += `&_cb=${encodeURIComponent(String(cacheBust))}`;
   }

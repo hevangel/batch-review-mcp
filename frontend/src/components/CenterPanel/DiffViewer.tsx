@@ -131,7 +131,7 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
             className={toolbarBtnPrimary}
           >
             <IconPlus className={toolbarIconClass} />
-            <span>Add</span>
+            <span>Add (Ctrl+Alt+C)</span>
           </button>
         </div>
       </div>

@@ -6,6 +6,11 @@ interface SelectionRange {
   line_end: number;
 }
 
+interface MarkdownHashTarget {
+  path: string;
+  hash: string;
+}
+
 interface AppStore {
   // Left panel
   activeTab: LeftTab;
@@ -34,9 +39,17 @@ interface AppStore {
   imageRegion: { x1: number; y1: number; x2: number; y2: number } | null;
   setImageRegion: (r: { x1: number; y1: number; x2: number; y2: number } | null) => void;
 
+  /** PDF: 1-based page + normalized 0–1 rect on that page */
+  pdfRegion: { page: number; x1: number; y1: number; x2: number; y2: number } | null;
+  setPdfRegion: (r: { page: number; x1: number; y1: number; x2: number; y2: number } | null) => void;
+
   // Active highlight (from clicking a comment)
   activeHighlight: HighlightPayload | null;
   setActiveHighlight: (h: HighlightPayload | null) => void;
+
+  // Pending markdown hash navigation target (e.g. other.md#section)
+  markdownHashTarget: MarkdownHashTarget | null;
+  setMarkdownHashTarget: (target: MarkdownHashTarget | null) => void;
 
   // Comments (right panel)
   comments: Comment[];
@@ -70,7 +83,7 @@ export const useStore = create<AppStore>((set) => ({
   centerReloadEpoch: 0,
   bumpCenterReload: () => set((s) => ({ centerReloadEpoch: s.centerReloadEpoch + 1 })),
   openFile: (path, mode = "view") =>
-    set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null }),
+    set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null, pdfRegion: null }),
   openFileFromServer: (path, mode = "view") =>
     set((s) => {
       const m = mode ?? "view";
@@ -80,10 +93,11 @@ export const useStore = create<AppStore>((set) => ({
         openMode: m,
         selection: null,
         imageRegion: null,
+        pdfRegion: null,
         centerReloadEpoch: same ? s.centerReloadEpoch + 1 : s.centerReloadEpoch,
       };
     }),
-  closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null }),
+  closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null, pdfRegion: null }),
 
   selection: null,
   setSelection: (sel) => set({ selection: sel }),
@@ -91,8 +105,14 @@ export const useStore = create<AppStore>((set) => ({
   imageRegion: null,
   setImageRegion: (r) => set({ imageRegion: r }),
 
+  pdfRegion: null,
+  setPdfRegion: (r) => set({ pdfRegion: r }),
+
   activeHighlight: null,
   setActiveHighlight: (h) => set({ activeHighlight: h }),
+
+  markdownHashTarget: null,
+  setMarkdownHashTarget: (target) => set({ markdownHashTarget: target }),
 
   comments: [],
   newestCommentId: null,

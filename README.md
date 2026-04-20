@@ -12,6 +12,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
 | **Markdown rendering** | `.md` files are fully rendered; highlight any paragraph to add a comment |
+| **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click any changed file to view an inline red/green unified diff |
 | **Structured comments** | Each comment captures `@filename:L10-15` line references automatically |
@@ -142,7 +143,9 @@ Click a changed file to open it in inline diff mode.
 
 ### Center panel
 
-- **Markdown files** — fully rendered. Select any text with the mouse and click **+ Add Comment** to create a comment anchored to those line numbers.
+- **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
+- **Markdown files** — fully rendered. Relative image embeds render inline, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
 - **Diff view** — Monaco DiffEditor showing original (HEAD) vs working tree inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
 
@@ -226,7 +229,7 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `get_file_content(path)` | Read file content as structured data (`content`, `line_count`, `language`, `path`) when diff context alone is not enough |
 | `list_directory(path)` | Minimal repo navigation helper for hosts that want the review file tree |
 | `open_file_in_ui(path, mode)` | Open a file in the center panel (`view` or `diff`); same path+mode refreshes the view |
-| `highlight_in_ui(path, line_start, line_end)` | Open a file and highlight a 1-based line range in the UI |
+| `highlight_in_ui(path, line_start?, line_end?, pdf_page?, region_x1?, …)` | **Source files:** ``line_start``–``line_end`` (1-based). **PDFs:** ``pdf_page`` + ``region_*`` normalized 0–1 on that page. **Images:** ``region_*`` in original pixels (omit ``pdf_page``) |
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
 | `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
 | `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |

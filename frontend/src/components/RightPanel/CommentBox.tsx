@@ -69,6 +69,8 @@ export default function CommentBox({
       region_y1: comment.region_y1,
       region_x2: comment.region_x2,
       region_y2: comment.region_y2,
+      pdf_page: comment.pdf_page ?? null,
+      highlighted_text: comment.highlighted_text || null,
     });
   };
 
@@ -102,6 +104,10 @@ export default function CommentBox({
   };
 
   const outdated = Boolean(comment.outdated);
+  const hasPdfTextAnchor =
+    comment.pdf_page != null &&
+    comment.region_x1 == null &&
+    comment.highlighted_text.trim().length > 0;
 
   return (
     <div
@@ -154,6 +160,12 @@ export default function CommentBox({
       {outdated && (
         <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-300 bg-rose-950/50 border border-rose-600/50 rounded px-2 py-1">
           Outdated — highlighted source no longer matches this range
+        </div>
+      )}
+
+      {hasPdfTextAnchor && (
+        <div className="text-xs text-gray-300 bg-gray-900/70 border border-gray-700 rounded px-2 py-1 whitespace-pre-wrap max-h-28 overflow-auto">
+          {comment.highlighted_text}
         </div>
       )}
 

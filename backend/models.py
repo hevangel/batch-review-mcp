@@ -26,13 +26,15 @@ class Comment(BaseModel):
     file_path: str
     line_start: int
     line_end: int
-    reference: str  # "@filename:L10-15" or "@image.png:rect(x1,y1,x2,y2)"
+    reference: str  # "@file:L10-15" | "@img:rect(px)" | "@doc.pdf:p2" | "@doc.pdf:p2:rect(0-1 floats)"
     text: str = ""
     highlighted_text: str = ""
     region_x1: Optional[float] = None
     region_y1: Optional[float] = None
     region_x2: Optional[float] = None
     region_y2: Optional[float] = None
+    #: When set with ``region_*``, anchors a PDF highlight on this 1-based page (``region_*`` are 0–1 fractions).
+    pdf_page: Optional[int] = None
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -50,6 +52,7 @@ class CreateCommentRequest(BaseModel):
     region_y1: Optional[float] = None
     region_x2: Optional[float] = None
     region_y2: Optional[float] = None
+    pdf_page: Optional[int] = None
 
 
 class SaveCommentsRequest(BaseModel):

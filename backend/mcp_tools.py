@@ -7,10 +7,12 @@ All UI-mutating tools also broadcast WebSocket events so the browser updates liv
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Optional
 
 from fastmcp import FastMCP
 
+from backend.comment_staleness import _IMAGE_SUFFIXES
 from backend.models import WsEvent
 
 mcp = FastMCP(
@@ -23,7 +25,7 @@ mcp = FastMCP(
         "Then use git review context via get_git_changes() and get_git_diff(path), and structured "
         "file reads only when extra context is needed. Manage review comments "
         "(add, update, delete, clear all, delete outdated, list, recompute stale, load saved reviews, save), drive the shared browser UI "
-        "(open, highlight, jump — repeat open_file_in_ui for the same path refreshes the view), read server config, and get the web UI URL. "
+        "(open, highlight for lines / PDF page+region / image pixel rect, jump — repeat open_file_in_ui for the same path refreshes the view), read server config, and get the web UI URL. "
         "Directory listing is only a navigation helper, not a general-purpose filesystem API. "
         "The MCP resource ``batch-review://server/urls`` mirrors connection URLs as JSON. "
         "UI-mutating tools broadcast WebSocket events; comment mutations also show a short notice in the browser."
@@ -220,19 +222,113 @@ async def open_file_in_ui(path: str, mode: str = "view") -> str:
 
 
 @mcp.tool
-async def highlight_in_ui(path: str, line_start: int, line_end: int) -> str:
-    """Scroll and highlight a line range in the browser UI.
+async def highlight_in_ui(
+    path: str,
+    line_start: int = 0,
+    line_end: int = 0,
+    pdf_page: int | None = None,
+    region_x1: float | None = None,
+    region_y1: float | None = None,
+    region_x2: float | None = None,
+    region_y2: float | None = None,
+) -> str:
+    """Scroll and highlight a location in the browser UI.
+
+    **Text / code files:** pass ``line_start`` and ``line_end`` (1-based, inclusive). Leave
+    ``pdf_page`` unset. ``line_start`` must be >= 1.
+
+    **PDF files:** pass ``pdf_page`` (1-based page index) and ``region_x1``–``region_y2`` as
+    normalized fractions in 0–1 on that page (same convention as ``add_comment`` for PDFs:
+    origin top-left of the page). ``line_start`` / ``line_end`` are ignored (may be omitted).
+
+    **Image files** (png, jpg, …): pass all of ``region_x1``–``region_y2`` in **original image
+    pixel** coordinates (same as ``add_comment`` for images). Do not set ``pdf_page``.
+    ``line_start`` / ``line_end`` are ignored.
 
     Args:
-        path: Relative path to the file.
-        line_start: First line number (1-based).
-        line_end: Last line number (1-based, inclusive).
+        path: Relative path to the file within the repo.
+        line_start: First line number (1-based) for source files.
+        line_end: Last line number (1-based, inclusive) for source files.
+        pdf_page: For PDFs only, 1-based page index when using ``region_*``.
+        region_x1: Left edge (PDF: 0–1 on page; image: pixels).
+        region_y1: Top edge (PDF: 0–1 on page; image: pixels).
+        region_x2: Right edge (PDF: 0–1 on page; image: pixels).
+        region_y2: Bottom edge (PDF: 0–1 on page; image: pixels).
 
     Returns:
-        Confirmation message.
+        Confirmation message, or an error string if arguments are invalid.
     """
     _require_mcp_session()
     state = _state()
+
+    if Path(path).suffix.lower() == ".pdf" and pdf_page is None:
+        return (
+            "Error: PDF highlights require pdf_page and region_x1–region_y2 "
+            "(normalized 0–1 on that page), not line numbers."
+        )
+
+    if pdf_page is not None:
+        if Path(path).suffix.lower() != ".pdf":
+            return "Error: pdf_page may only be set when path is a .pdf file."
+        if pdf_page < 1:
+            return "Error: pdf_page must be >= 1"
+        if region_x1 is None or region_y1 is None or region_x2 is None or region_y2 is None:
+            return (
+                "Error: PDF highlight requires pdf_page and all of region_x1, region_y1, "
+                "region_x2, region_y2 (normalized 0–1 on that page)"
+            )
+        await state.broadcast(
+            WsEvent(
+                type="highlight",
+                payload={
+                    "path": path,
+                    "line_start": 0,
+                    "line_end": 0,
+                    "pdf_page": pdf_page,
+                    "region_x1": region_x1,
+                    "region_y1": region_y1,
+                    "region_x2": region_x2,
+                    "region_y2": region_y2,
+                },
+            )
+        )
+        return (
+            f"Highlighted {path} PDF page {pdf_page} "
+            f"rect({region_x1:.4f},{region_y1:.4f},{region_x2:.4f},{region_y2:.4f}) in UI"
+        )
+
+    suffix = Path(path).suffix.lower()
+    if suffix in _IMAGE_SUFFIXES:
+        if region_x1 is None or region_y1 is None or region_x2 is None or region_y2 is None:
+            return (
+                "Error: image highlights require region_x1–region_y2 in original image pixels "
+                "(same convention as add_comment for image files)."
+            )
+        await state.broadcast(
+            WsEvent(
+                type="highlight",
+                payload={
+                    "path": path,
+                    "line_start": 0,
+                    "line_end": 0,
+                    "region_x1": region_x1,
+                    "region_y1": region_y1,
+                    "region_x2": region_x2,
+                    "region_y2": region_y2,
+                },
+            )
+        )
+        return (
+            f"Highlighted {path} rect({int(region_x1)},{int(region_y1)})"
+            f"–({int(region_x2)},{int(region_y2)}) in UI (original pixels)"
+        )
+
+    if line_start < 1 or line_end < line_start:
+        return (
+            "Error: for source files, line_start must be >= 1 and line_end >= line_start. "
+            "For PDFs use pdf_page + normalized region; for images use region in original pixels."
+        )
+
     await state.broadcast(
         WsEvent(
             type="highlight",
@@ -261,6 +357,12 @@ async def jump_to_comment_in_ui(comment_id: str) -> str:
                 "path": comment.file_path,
                 "line_start": comment.line_start,
                 "line_end": comment.line_end,
+                "region_x1": comment.region_x1,
+                "region_y1": comment.region_y1,
+                "region_x2": comment.region_x2,
+                "region_y2": comment.region_y2,
+                "pdf_page": comment.pdf_page,
+                "highlighted_text": comment.highlighted_text,
             },
         )
     )
@@ -282,6 +384,7 @@ async def add_comment(
     region_y1: float | None = None,
     region_x2: float | None = None,
     region_y2: float | None = None,
+    pdf_page: int | None = None,
 ) -> dict:
     """Add a review comment for a specific line range in a file.
 
@@ -295,6 +398,7 @@ async def add_comment(
         region_y1: Top edge of image region in original pixels (optional, for image files).
         region_x2: Right edge of image region in original pixels (optional, for image files).
         region_y2: Bottom edge of image region in original pixels (optional, for image files).
+        pdf_page: For PDFs, 1-based page index when using ``region_*`` as normalized 0–1 coords on that page.
 
     Returns:
         The created Comment as a dict.
@@ -311,6 +415,7 @@ async def add_comment(
         region_y1=region_y1,
         region_x2=region_x2,
         region_y2=region_y2,
+        pdf_page=pdf_page,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     await _agent_notice(state, f"Agent added comment {comment.reference}")

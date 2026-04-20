@@ -60,6 +60,8 @@ _LANG_MAP: dict[str, str] = {
 
 _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico"}
 
+_PDF_EXTENSIONS = {".pdf"}
+
 _IMAGE_MIME: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -95,6 +97,8 @@ def _detect_language(path: str) -> str:
         return "dockerfile"
     if suffix in _IMAGE_EXTENSIONS:
         return "image"
+    if suffix in _PDF_EXTENSIONS:
+        return "pdf"
     return _LANG_MAP.get(suffix, "plaintext")
 
 
@@ -187,6 +191,21 @@ def get_file_content(path: str = Query(...)) -> FileContentResponse:
         raise HTTPException(status_code=404, detail="File not found")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}")
+
+
+@router.get("/pdf-content")
+def get_pdf_content(path: str = Query(...)):
+    """Return the raw bytes of a PDF file within the repo."""
+    state = get_state()
+    try:
+        resolved = state.resolve_safe_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if resolved.suffix.lower() not in _PDF_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a PDF file")
+    return FileResponse(str(resolved), media_type="application/pdf")
 
 
 @router.get("/image-content")

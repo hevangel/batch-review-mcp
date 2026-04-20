@@ -49,6 +49,9 @@ def comment_is_outdated(
     if suffix in _IMAGE_SUFFIXES:
         return False
 
+    if comment.pdf_page is not None:
+        return False
+
     if comment.region_x1 is not None:
         return False
 

@@ -32,6 +32,7 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
         region_y1=body.region_y1,
         region_x2=body.region_x2,
         region_y2=body.region_y2,
+        pdf_page=body.pdf_page,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     return comment

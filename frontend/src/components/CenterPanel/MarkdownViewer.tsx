@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useRef, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSlug from "rehype-slug";
 import type { Components } from "react-markdown";
 import { useStore } from "../../store";
-import { createComment } from "../../api";
+import { createComment, imageUrl } from "../../api";
 import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface MarkdownViewerProps {
@@ -19,7 +20,39 @@ interface MarkdownViewerProps {
  * Because react-markdown passes `node` (rehype node) as an extra prop we can
  * extract the source position from it.
  */
-function makeComponents(): Components {
+function isExternalHref(href: string): boolean {
+  return /^[a-zA-Z][a-zA-Z\d+.-]*:/.test(href) || href.startsWith("//");
+}
+
+function resolveRepoHref(
+  currentFilePath: string,
+  href: string,
+): { path: string; hash: string } | null {
+  if (!href || href.startsWith("#") || isExternalHref(href)) {
+    return null;
+  }
+
+  const [pathPart, hashPart = ""] = href.split("#", 2);
+  const cleanPath = pathPart.split("?", 1)[0] ?? "";
+  if (!cleanPath) {
+    return { path: currentFilePath, hash: hashPart ? `#${hashPart}` : "" };
+  }
+
+  const baseDir =
+    currentFilePath.includes("/") ?
+      currentFilePath.slice(0, currentFilePath.lastIndexOf("/") + 1) :
+      "";
+  const base = cleanPath.startsWith("/") ? "http://repo/" : `http://repo/${baseDir}`;
+  const resolved = new URL(cleanPath, base).pathname.replace(/^\/+/, "");
+  return { path: decodeURIComponent(resolved), hash: hashPart ? `#${hashPart}` : "" };
+}
+
+function makeComponents(
+  currentFilePath: string,
+  openFile: (path: string, mode?: "view" | "diff") => void,
+  scrollToHash: (hash: string) => void,
+  setMarkdownHashTarget: (target: { path: string; hash: string } | null) => void,
+): Components {
   // Shared handler — creates a wrapper with data-line
   function withLine(
     Tag: string,
@@ -53,6 +86,68 @@ function makeComponents(): Components {
     blockquote: (props) => withLine("blockquote", props as Record<string, unknown>),
     pre: (props) => withLine("pre", props as Record<string, unknown>),
     table: (props) => withLine("table", props as Record<string, unknown>),
+    a: (props) => {
+      const { href = "", children, ...rest } = props as {
+        href?: string;
+        children: React.ReactNode;
+        [k: string]: unknown;
+      };
+      const resolved = resolveRepoHref(currentFilePath, href);
+      if (resolved) {
+        if (resolved.path === currentFilePath && resolved.hash) {
+          return (
+            <a
+              {...rest}
+              href={resolved.hash}
+              onClick={(e) => {
+                e.preventDefault();
+                scrollToHash(resolved.hash);
+              }}
+              title={`Jump to ${resolved.hash} in this document`}
+            >
+              {children}
+            </a>
+          );
+        }
+        return (
+          <a
+            {...rest}
+            href={resolved.hash || "#"}
+            onClick={(e) => {
+              e.preventDefault();
+              if (resolved.hash) {
+                setMarkdownHashTarget({ path: resolved.path, hash: resolved.hash });
+              } else {
+                setMarkdownHashTarget(null);
+              }
+              openFile(resolved.path, "view");
+            }}
+            title={`Open ${resolved.path} in the center panel`}
+          >
+            {children}
+          </a>
+        );
+      }
+      return <a {...rest} href={href}>{children}</a>;
+    },
+    img: (props) => {
+      const { src = "", alt = "", ...rest } = props as {
+        src?: string;
+        alt?: string;
+        [k: string]: unknown;
+      };
+      const resolved = resolveRepoHref(currentFilePath, src);
+      const finalSrc = resolved ? imageUrl(resolved.path) : src;
+      return (
+        <img
+          {...rest}
+          src={finalSrc}
+          alt={alt}
+          loading="lazy"
+          className="max-w-full h-auto rounded border border-gray-700"
+        />
+      );
+    },
   };
 }
 
@@ -77,6 +172,33 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const addCommentToStore = useStore((s) => s.addComment);
   const activeHighlight = useStore((s) => s.activeHighlight);
   const bumpCenterReload = useStore((s) => s.bumpCenterReload);
+  const openFile = useStore((s) => s.openFile);
+  const markdownHashTarget = useStore((s) => s.markdownHashTarget);
+  const setMarkdownHashTarget = useStore((s) => s.setMarkdownHashTarget);
+
+  const scrollToHash = useCallback((hash: string) => {
+    const id = decodeURIComponent(hash.replace(/^#/, ""));
+    if (!id) {
+      return false;
+    }
+    const target = document.getElementById(id) as HTMLElement | null;
+    if (!target || !containerRef.current?.contains(target)) {
+      return false;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("markdown-monaco-jump-highlight");
+    window.setTimeout(() => target.classList.remove("markdown-monaco-jump-highlight"), 2000);
+    return true;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (!markdownHashTarget || markdownHashTarget.path !== filePath || !markdownHashTarget.hash) {
+      return;
+    }
+    if (scrollToHash(markdownHashTarget.hash)) {
+      setMarkdownHashTarget(null);
+    }
+  }, [markdownHashTarget, filePath, content, scrollToHash, setMarkdownHashTarget]);
 
   // Scroll / highlight when activeHighlight or rendered markdown changes.
   // useLayoutEffect so DOM from ReactMarkdown is present (mirrors CodeViewer onMount fix).
@@ -151,7 +273,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     return () => window.removeEventListener("keydown", handler);
   }, [handleAdd]);
 
-  const components = makeComponents();
+  const components = makeComponents(filePath, openFile, scrollToHash, setMarkdownHashTarget);
 
   return (
     <div className="flex flex-col h-full">
@@ -177,7 +299,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
             className={toolbarBtnPrimary}
           >
             <IconPlus className={toolbarIconClass} />
-            <span>Add</span>
+            <span>Add (Ctrl+Alt+C)</span>
           </button>
         </div>
       </div>
@@ -189,7 +311,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
         onMouseUp={handleMouseUp}
       >
         <div className="prose prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]} components={components}>
             {content}
           </ReactMarkdown>
         </div>
