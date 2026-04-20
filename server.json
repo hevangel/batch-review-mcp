@@ -13,7 +13,7 @@
     {
       "registryType": "mcpb",
       "identifier": "https://github.com/hevangel/batch-review-mcp/releases/download/v0.3.1/batch-review-mcp-0.3.1.mcpb",
-      "fileSha256": "751b3635dd423f18e28e764382c5825c7845f6ad6ca04fb1f846a0369cd4c9a2",
+      "fileSha256": "8d365212e6f75c26f926a5811a5e1ff9a8985e075ab76344b63141b8d74cbfe0",
       "transport": {
         "type": "stdio"
       }
