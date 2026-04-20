@@ -22,10 +22,17 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 
 ---
 
+## Distribution
+
+- **[PyPI — `batch-review-mcp`](https://pypi.org/project/batch-review-mcp/)** — published wheels and sdist for `pip` / `uv`.
+- **[Official MCP Registry — `io.github.hevangel/batch-review-mcp`](https://registry.modelcontextprotocol.io/v0.1/servers/io.github.hevangel%2Fbatch-review-mcp/versions/latest)** — latest published server metadata (JSON API; the [registry site](https://registry.modelcontextprotocol.io/) is still preview).
+
+---
+
 ## Requirements
 
-- Python ≥ 3.11 with [uv](https://docs.astral.sh/uv/)
-- Node.js ≥ 18 (for the one-time frontend build)
+- Python ≥ 3.13 with [uv](https://docs.astral.sh/uv/)
+- Node.js ≥ 22 (for the one-time frontend build; matches GitHub Actions)
 
 ---
 

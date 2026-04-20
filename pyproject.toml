@@ -3,7 +3,7 @@ name = "batch-review-mcp"
 version = "0.3.1"
 description = "Batch review tool for markdown files and code changes — MCP server + web UI"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.0",
     "fastmcp>=3.0.0",
