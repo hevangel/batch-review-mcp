@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import type { Comment } from "../../types";
-import { deleteComment, updateCommentText } from "../../api";
+import { deleteComment, refreshCommentAnchor, updateCommentText } from "../../api";
 import { useStore } from "../../store";
+import { IconRefresh, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface CommentBoxProps {
   comment: Comment;
@@ -29,6 +30,8 @@ export default function CommentBox({
   const [text, setText] = useState(comment.text);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [refreshingAnchor, setRefreshingAnchor] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   /** Resize textarea to fit content, capped at 50vh. */
@@ -80,6 +83,7 @@ export default function CommentBox({
 
   const handleBlur = async () => {
     if (text === comment.text) return;
+    setActionError(null);
     setSaving(true);
     try {
       const updated = await updateCommentText(comment.id, text);
@@ -93,6 +97,7 @@ export default function CommentBox({
   };
 
   const handleDelete = async () => {
+    setActionError(null);
     setDeleting(true);
     try {
       await deleteComment(comment.id);
@@ -100,6 +105,20 @@ export default function CommentBox({
     } catch (e) {
       console.error("Failed to delete comment:", e);
       setDeleting(false);
+    }
+  };
+
+  const handleRefreshAnchor = async () => {
+    setActionError(null);
+    setRefreshingAnchor(true);
+    try {
+      const updated = await refreshCommentAnchor(comment.id);
+      updateComment(updated);
+    } catch (e) {
+      console.error("Failed to refresh comment anchor:", e);
+      setActionError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshingAnchor(false);
     }
   };
 
@@ -170,22 +189,39 @@ export default function CommentBox({
       )}
 
       {/* Comment textarea – auto-resizes up to 50vh */}
-      <textarea
-        ref={textareaRef}
-        value={text}
-        onChange={handleTextChange}
-        onBlur={handleBlur}
-        placeholder="Add your review comment…"
-        rows={1}
-        className={`w-full text-sm rounded px-2 py-1.5 resize-none focus:outline-none overflow-hidden ${
-          outdated
-            ? "bg-rose-950/40 text-rose-100/90 line-through decoration-rose-300 decoration-2 border border-rose-700/60 focus:border-rose-500 placeholder-rose-300/50"
-            : "bg-gray-700 text-gray-100 placeholder-gray-500 border border-gray-600 focus:border-blue-500"
-        }`}
-      />
+      <div className="relative">
+        <textarea
+          ref={textareaRef}
+          value={text}
+          onChange={handleTextChange}
+          onBlur={handleBlur}
+          placeholder="Add your review comment…"
+          rows={1}
+          className={`w-full text-sm rounded px-2 py-1.5 resize-none focus:outline-none overflow-hidden ${
+            outdated
+              ? "pr-10 bg-rose-950/40 text-rose-100/90 line-through decoration-rose-300 decoration-2 border border-rose-700/60 focus:border-rose-500 placeholder-rose-300/50"
+              : "bg-gray-700 text-gray-100 placeholder-gray-500 border border-gray-600 focus:border-blue-500"
+          }`}
+        />
+        {outdated && (
+          <button
+            type="button"
+            onClick={handleRefreshAnchor}
+            disabled={refreshingAnchor || deleting}
+            className="absolute top-1.5 right-1.5 inline-flex items-center justify-center rounded p-1 text-rose-200/80 hover:text-white hover:bg-rose-800/60 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Accept the current text at this range and clear the outdated mark"
+            aria-label="Refresh highlighted text for this comment"
+          >
+            <IconRefresh className={`${toolbarIconClass}${refreshingAnchor ? " animate-spin" : ""}`} />
+          </button>
+        )}
+      </div>
 
-      {saving && (
-        <span className="text-xs text-gray-500">Saving…</span>
+      {(saving || refreshingAnchor) && (
+        <span className="text-xs text-gray-500">{refreshingAnchor ? "Refreshing…" : "Saving…"}</span>
+      )}
+      {actionError && (
+        <span className="text-xs text-red-400">{actionError}</span>
       )}
     </div>
   );

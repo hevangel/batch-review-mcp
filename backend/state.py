@@ -216,6 +216,17 @@ class AppState:
         comment.text = text
         return comment
 
+    def refresh_comment_highlighted_text(self, comment_id: str) -> Comment | None:
+        """Accept the current on-disk text slice and clear ``outdated`` for a comment."""
+        from backend.comment_staleness import current_comment_text
+
+        comment = self.comments.get(comment_id)
+        if comment is None:
+            return None
+        comment.highlighted_text = current_comment_text(self.resolve_safe_path, comment)
+        comment.outdated = False
+        return comment
+
     def list_review_stems(self) -> list[str]:
         """Basenames (without .json) of saved review files in output_dir."""
         return sorted(p.stem for p in self.output_dir.glob("*.json") if p.is_file())

@@ -56,6 +56,35 @@
   background-color: rgb(255 255 255 / 8%);
 }
 
+.markdown-mermaid-wrapper {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border: 1px solid #3e3e42;
+  border-radius: 0.5rem;
+  background-color: #252526;
+  padding: 1rem;
+}
+
+.markdown-mermaid-loading {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+.markdown-mermaid-error {
+  border: 1px solid rgb(127 29 29 / 0.8);
+  border-radius: 0.5rem;
+  background-color: rgb(69 10 10 / 0.35);
+  color: #fecaca;
+  padding: 1rem;
+}
+
+.markdown-mermaid-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
 /*
  * Scrollbars — match Monaco / VS Code defaults (scrollbarSlider.* in monaco-editor miscColors.js;
  * vertical bar width matches editor.scrollbar.verticalScrollbarSize default 14).

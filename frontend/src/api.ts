@@ -99,6 +99,12 @@ export function updateCommentText(id: string, text: string): Promise<Comment> {
   });
 }
 
+export function refreshCommentAnchor(id: string): Promise<Comment> {
+  return json<Comment>(`/api/comments/${id}/refresh-anchor`, {
+    method: "POST",
+  });
+}
+
 export function deleteComment(id: string): Promise<void> {
   return json<void>(`/api/comments/${id}`, { method: "DELETE" });
 }

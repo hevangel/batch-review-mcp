@@ -90,6 +90,27 @@ async def update_comment(comment_id: str, body: dict) -> Comment:
     return comment
 
 
+@router.post("/{comment_id}/refresh-anchor", response_model=Comment)
+async def refresh_comment_anchor(comment_id: str) -> Comment:
+    """Capture the current on-disk text at this comment's range and clear ``outdated``."""
+    state = get_state()
+    comment = state.comments.get(comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    try:
+        refreshed = state.refresh_comment_highlighted_text(comment_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}") from exc
+    if refreshed is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    await state.broadcast(WsEvent(type="add_comment", payload=refreshed.model_dump()))
+    return refreshed
+
+
 @router.delete("/{comment_id}", status_code=204)
 async def delete_comment(comment_id: str) -> None:
     """Delete a comment by ID and broadcast."""

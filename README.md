@@ -11,15 +11,54 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | Feature | Description |
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
-| **Markdown rendering** | `.md` files are fully rendered; highlight any paragraph to add a comment |
+| **Markdown rendering** | `.md` files are fully rendered, including Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click any changed file to view an inline red/green unified diff |
 | **Structured comments** | Each comment captures `@filename:L10-15` line references automatically |
+| **Outdated recovery** | When a text comment goes stale, refresh its stored highlight from the current file directly from the right panel |
 | **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
 | **Resume session** | On startup, if `{output-dir}/{output}.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
+
+---
+
+## Architecture
+
+At runtime, Batch Review is a single Python application that serves the browser UI, exposes REST and WebSocket endpoints for that UI, and optionally exposes the same review session to MCP clients.
+
+```mermaid
+flowchart LR
+    CLI["CLI entry point<br/>`uv run batch-review`"]
+    Browser["Browser UI<br/>React + Zustand"]
+    McpHost["MCP host<br/>Cursor / Claude Desktop / VS Code / other clients"]
+
+    subgraph Backend["Batch Review backend process"]
+        Server["FastAPI app<br/>static frontend `/`<br/>REST `/api/*`<br/>WebSocket `/ws`"]
+        Mcp["FastMCP server<br/>stdio transport<br/>HTTP transport `/mcp`"]
+        State["Shared AppState<br/>repo root, comments, MCP session,<br/>connected WebSocket clients"]
+    end
+
+    Repo["Git repository under review"]
+    Output["Saved review output<br/>`review_comments.json`<br/>`review_comments.md`"]
+
+    CLI --> Server
+    CLI --> Mcp
+    Server --> Browser
+    Browser -->|"REST reads/writes"| Server
+    Browser <-->|"live sync"| Server
+    Server --> State
+    Mcp --> State
+    McpHost -->|"stdio or HTTP MCP"| Mcp
+    State -->|"read files, diffs, existing review data"| Repo
+    State -->|"save/load review reports"| Output
+    State -.->|"broadcast UI events"| Browser
+```
+
+- The browser loads the React app from the FastAPI server, fetches files/comments/config over REST, and stays synchronized through `/ws`.
+- MCP tools and REST routes both operate on the same in-memory `AppState`, so agent-created comments appear in the UI immediately.
+- In `--mcp` mode, the HTTP server keeps the web UI available while FastMCP also runs over stdio for editor and CLI hosts.
 
 ---
 
@@ -95,16 +134,16 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The entry uses **`registryType": "mcpb"`**: the download URL must be a **public** GitHub release asset, and **`fileSha256`** must match those bytes **exactly** (the [Release](.github/workflows/release.yml) workflow builds the `.mcpb` on **Linux**, which can differ from a pack produced on Windows).
 
-**Recommended order for a new version (e.g. `v0.4.1`):**
+**Recommended order for a new version (e.g. `v0.4.2`):**
 
-1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.4.1/batch-review-mcp-0.4.1.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so `npm exec` does not float to unrelated CLI majors; **byte-identical** `.mcpb` hashes can still differ from **ubuntu-latest** (Node/npm, line endings, etc.), so prefer the preflight SHA from GitHub Actions when cutting a release.
+1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.4.2/batch-review-mcp-0.4.2.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so `npm exec` does not float to unrelated CLI majors; **byte-identical** `.mcpb` hashes can still differ from **ubuntu-latest** (Node/npm, line endings, etc.), so prefer the preflight SHA from GitHub Actions when cutting a release.
 2. In GitHub **Actions**, run **[MCP registry preflight (Linux MCPB hash)](.github/workflows/mcp-registry-preflight.yml)** (`workflow_dispatch`). Open the job summary and copy the printed **SHA-256** into **`server.json`** → **`packages[0].fileSha256`**. Commit and push to `main`.
-3. Push the **tag** (e.g. `git tag v0.4.1 && git push origin v0.4.1`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
+3. Push the **tag** (e.g. `git tag v0.4.2 && git push origin v0.4.2`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
 4. After the release exists, run **`mcp-publisher publish`** (with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) and `mcp-publisher login github`). Optional: add **`PYPI_API_TOKEN`** so the same workflow can **`uv publish`** the wheel/sdist.
 
 If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
 rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
-(for example `v0.4.1`). That manual path checks out the tag you name, overlays the current
+(for example `v0.4.2`). That manual path checks out the tag you name, overlays the current
 release metadata from `main`, and reuses the existing tag name, so you can recover the
 release without moving the tag or rebuilding from a different code revision.
 
@@ -144,7 +183,7 @@ Click a changed file to open it in inline diff mode.
 ### Center panel
 
 - **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
-- **Markdown files** — fully rendered. Relative image embeds render inline, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **Markdown files** — fully rendered. Relative image embeds render inline, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
 - **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
 - **Diff view** — Monaco DiffEditor showing original (HEAD) vs working tree inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
@@ -154,6 +193,7 @@ Click a changed file to open it in inline diff mode.
 Each comment shows:
 - `@filename:L10-15` reference — click to jump to that location in the center panel
 - A text area for your review notes (auto-saves on blur)
+- For outdated text comments, a refresh icon inside the textbox that re-captures the current highlighted text at that line range and clears the outdated state
 - A delete button
 
 The **💾 Save Review** button saves all comments to:

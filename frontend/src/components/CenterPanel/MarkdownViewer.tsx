@@ -1,8 +1,9 @@
-import { useEffect, useLayoutEffect, useRef, useCallback } from "react";
+import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSlug from "rehype-slug";
 import type { Components } from "react-markdown";
+import mermaid from "mermaid";
 import { useStore } from "../../store";
 import { createComment, imageUrl } from "../../api";
 import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
@@ -10,6 +11,94 @@ import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIco
 interface MarkdownViewerProps {
   content: string;
   filePath: string;
+}
+
+let mermaid_initialized = false;
+let mermaid_render_count = 0;
+
+function ensure_mermaid_initialized(): void {
+  if (mermaid_initialized) {
+    return;
+  }
+  mermaid.initialize({
+    startOnLoad: false,
+    theme: "dark",
+    securityLevel: "strict",
+  });
+  mermaid_initialized = true;
+}
+
+function extract_text_content(node: unknown): string {
+  if (typeof node === "string") {
+    return node;
+  }
+  if (Array.isArray(node)) {
+    return node.map(extract_text_content).join("");
+  }
+  if (isValidElement(node)) {
+    return extract_text_content((node.props as { children?: unknown }).children);
+  }
+  return "";
+}
+
+function is_mermaid_class_name(value: unknown): value is string {
+  return typeof value === "string" && /(?:^|\s)language-mermaid(?:\s|$)/.test(value);
+}
+
+function MermaidDiagram({ chart }: { chart: string }) {
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function render_chart() {
+      try {
+        ensure_mermaid_initialized();
+        const id = `batch-review-mermaid-${mermaid_render_count++}`;
+        const result = await mermaid.render(id, chart);
+        if (cancelled) {
+          return;
+        }
+        setSvg(result.svg);
+        setError("");
+      } catch (e) {
+        if (cancelled) {
+          return;
+        }
+        setSvg("");
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    void render_chart();
+    return () => {
+      cancelled = true;
+    };
+  }, [chart]);
+
+  if (error) {
+    return (
+      <div className="markdown-mermaid-error">
+        <p className="font-medium">Mermaid render error</p>
+        <p className="mt-1 text-xs text-red-300">{error}</p>
+        <pre className="mt-3 overflow-x-auto rounded border border-red-900/60 bg-gray-950/80 p-3 text-xs text-gray-200">
+          <code>{chart}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return <div className="markdown-mermaid-loading">Rendering Mermaid diagram…</div>;
+  }
+
+  return (
+    <div
+      className="markdown-mermaid-diagram"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
 }
 
 /**
@@ -52,6 +141,7 @@ function makeComponents(
   openFile: (path: string, mode?: "view" | "diff") => void,
   scrollToHash: (hash: string) => void,
   setMarkdownHashTarget: (target: { path: string; hash: string } | null) => void,
+  showMermaidSource: boolean,
 ): Components {
   // Shared handler — creates a wrapper with data-line
   function withLine(
@@ -73,6 +163,15 @@ function makeComponents(
     return <El {...rest} {...dataProps}>{children}</El>;
   }
 
+  function getLineDataProps(node?: { position?: { start: { line: number }; end: { line: number } } }) {
+    const dataProps: Record<string, unknown> = {};
+    const lineStart = node?.position?.start?.line;
+    const lineEnd = node?.position?.end?.line;
+    if (lineStart != null) dataProps["data-line-start"] = lineStart;
+    if (lineEnd != null) dataProps["data-line-end"] = lineEnd;
+    return dataProps;
+  }
+
   return {
     p: (props) => withLine("p", props as Record<string, unknown>),
     h1: (props) => withLine("h1", props as Record<string, unknown>),
@@ -84,7 +183,31 @@ function makeComponents(
     ul: (props) => withLine("ul", props as Record<string, unknown>),
     ol: (props) => withLine("ol", props as Record<string, unknown>),
     blockquote: (props) => withLine("blockquote", props as Record<string, unknown>),
-    pre: (props) => withLine("pre", props as Record<string, unknown>),
+    pre: (props) => {
+      const { node, children } = props as {
+        node?: { position?: { start: { line: number }; end: { line: number } } };
+        children: React.ReactNode;
+      };
+      const renderedChildren = Children.toArray(children);
+      if (renderedChildren.length === 1 && isValidElement(renderedChildren[0])) {
+        const childProps = renderedChildren[0].props as {
+          className?: string;
+          children?: unknown;
+        };
+        if (is_mermaid_class_name(childProps.className) && !showMermaidSource) {
+          const chart = extract_text_content(childProps.children).replace(/\n$/, "");
+          return (
+            <div
+              className="not-prose markdown-mermaid-wrapper"
+              {...getLineDataProps(node)}
+            >
+              <MermaidDiagram chart={chart} />
+            </div>
+          );
+        }
+      }
+      return withLine("pre", props as Record<string, unknown>);
+    },
     table: (props) => withLine("table", props as Record<string, unknown>),
     a: (props) => {
       const { href = "", children, ...rest } = props as {
@@ -175,6 +298,12 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const openFile = useStore((s) => s.openFile);
   const markdownHashTarget = useStore((s) => s.markdownHashTarget);
   const setMarkdownHashTarget = useStore((s) => s.setMarkdownHashTarget);
+  const [show_mermaid_source, set_show_mermaid_source] = useState(false);
+  const has_mermaid_blocks = /^```mermaid\b/m.test(content);
+
+  useEffect(() => {
+    set_show_mermaid_source(false);
+  }, [filePath]);
 
   const scrollToHash = useCallback((hash: string) => {
     const id = decodeURIComponent(hash.replace(/^#/, ""));
@@ -218,7 +347,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
       target.classList.add("markdown-monaco-jump-highlight");
       setTimeout(() => target.classList.remove("markdown-monaco-jump-highlight"), 2000);
     }
-  }, [activeHighlight, filePath, content]);
+  }, [activeHighlight, filePath, content, show_mermaid_source]);
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
@@ -273,7 +402,13 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     return () => window.removeEventListener("keydown", handler);
   }, [handleAdd]);
 
-  const components = makeComponents(filePath, openFile, scrollToHash, setMarkdownHashTarget);
+  const components = makeComponents(
+    filePath,
+    openFile,
+    scrollToHash,
+    setMarkdownHashTarget,
+    show_mermaid_source,
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -291,6 +426,17 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
             <IconRefresh className={toolbarIconClass} />
             <span>Reload</span>
           </button>
+          {has_mermaid_blocks ? (
+            <button
+              type="button"
+              onClick={() => set_show_mermaid_source((value) => !value)}
+              aria-label={show_mermaid_source ? "Show rendered Mermaid diagrams" : "Show Mermaid source code"}
+              title={show_mermaid_source ? "Switch Mermaid blocks to rendered diagrams" : "Switch Mermaid blocks to source code"}
+              className={show_mermaid_source ? toolbarBtnPrimary : toolbarBtnNeutral}
+            >
+              <span>Mermaid: {show_mermaid_source ? "Source" : "Rendered"}</span>
+            </button>
+          ) : null}
           <button
             type="button"
             onClick={() => handleAdd()}

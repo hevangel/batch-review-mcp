@@ -33,6 +33,35 @@ def _snippet_from_lines(lines: list[str], line_start: int, line_end: int) -> str
     return "\n".join(chunk)
 
 
+def current_comment_text(
+    resolve_safe_path: Callable[[str], Path],
+    comment: Comment,
+) -> str:
+    """Return the current on-disk text slice for a text comment.
+
+    Raises ValueError when the comment does not point at a refreshable text range.
+    Raises FileNotFoundError when the source file is missing.
+    Raises OSError when the source file cannot be read.
+    """
+    path = resolve_safe_path(comment.file_path)
+    if not path.is_file():
+        raise FileNotFoundError(f"File not found: {comment.file_path}")
+
+    suffix = path.suffix.lower()
+    if suffix in _IMAGE_SUFFIXES or comment.pdf_page is not None or comment.region_x1 is not None:
+        raise ValueError("Only text comments can refresh highlighted text.")
+
+    if comment.line_start < 1 or comment.line_end < comment.line_start:
+        raise ValueError("Comment does not have a valid line range.")
+
+    content = path.read_text(encoding="utf-8", errors="replace")
+    lines = content.splitlines()
+    if comment.line_start > len(lines) or comment.line_end > len(lines):
+        raise ValueError("Comment line range no longer exists in the file.")
+
+    return _snippet_from_lines(lines, comment.line_start, comment.line_end)
+
+
 def comment_is_outdated(
     resolve_safe_path: Callable[[str], Path],
     comment: Comment,
