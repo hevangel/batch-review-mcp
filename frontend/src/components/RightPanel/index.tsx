@@ -126,6 +126,9 @@ export default function RightPanel() {
     try {
       const loaded = await loadReviewByStem(stem);
       setComments(loaded);
+      setReviewStem(stem);
+      stemSnapshotRef.current = stem;
+      setEditingStem(false);
       setSavedPaths(null);
       setSaveError(null);
     } catch (e: unknown) {

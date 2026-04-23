@@ -1,6 +1,6 @@
 [project]
 name = "batch-review-mcp"
-version = "0.4.2"
+version = "0.4.3"
 description = "Batch review tool for markdown files and code changes — MCP server + web UI"
 readme = "README.md"
 requires-python = ">=3.13"
