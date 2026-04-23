@@ -333,6 +333,8 @@ cd frontend && npm run dev
 cd frontend && npm run build
 ```
 
+For contributor documentation, name `session_history/` files with the actual date of the AI session that produced the change rather than copying the date from an older entry.
+
 ---
 
 ## License

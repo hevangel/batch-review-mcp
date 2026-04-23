@@ -2,16 +2,16 @@
 
 ## Agent harness
 - Harness: Cursor CLI coding agent
-- Version: unavailable in session metadata
+- Version: 2026.04.17-479fd04
 
 ## Model
 - Model: GPT-5.4
 - Provider: OpenAI
 
 ## Token usage
-- Input tokens: unavailable in harness
-- Output tokens: unavailable in harness
-- Total tokens: unavailable in harness
+- Input tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Output tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Total tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
 
 ## Prompt / conversation
 
@@ -65,7 +65,7 @@ Added a per-comment refresh action for outdated text comments so the right panel
 - `mcpb/manifest.json` — bumped the MCP bundle version to `0.4.2`
 - `frontend/package.json` — bumped the frontend package version to `0.4.2`
 - `frontend/package-lock.json` — updated the lockfile package version to `0.4.2`
-- `session_history/2026-04-20_mermaid-markdown-viewer.md` — recorded this session for reproducibility
+- `session_history/2026-04-21_mermaid-markdown-viewer.md` — recorded this session for reproducibility
 
 ## Reproduction steps
 1. Check out the base commit: `git checkout 3470096`

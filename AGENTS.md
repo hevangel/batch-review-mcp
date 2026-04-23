@@ -8,6 +8,8 @@
 - Use **snake_case** for function and variable names
 - Do not call `python -c` with generated code; create a Python script then run it
 - Always print progress messages when creating Python scripts
+- When creating `session_history/` files, use the **actual current session date** in the filename (`YYYY-MM-DD`); do not copy a prior date from older session files.
+- For Cursor CLI coding agent session history, populate harness version and token usage with `uv run python scripts/session_history_metadata.py ...`; do not write `unavailable` if the repo utility can extract exact values.
 
 ## UI Layout Rules
 

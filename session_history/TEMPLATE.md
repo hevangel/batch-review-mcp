@@ -2,14 +2,14 @@
 
 ## Agent harness
 - Harness: <!-- e.g. GitHub Copilot Chat (VS Code agent mode) / Cursor / Claude Code / Aider -->
-- Version: <!-- e.g. copilot-chat-0.43.0 -->
+- Version: <!-- e.g. copilot-chat-0.43.0 / for Cursor CLI use `uv run python scripts/session_history_metadata.py --stream-json <log> --format markdown --require-usage` -->
 
 ## Model
 - Model: <!-- e.g. Claude Sonnet 4.6 / GPT-4o / Gemini 2.5 Pro -->
 - Provider: <!-- e.g. Anthropic via GitHub Copilot / OpenAI / Google -->
 
 ## Token usage
-- Input tokens: <!-- approximate is fine -->
+- Input tokens: <!-- approximate is fine if exact usage is unavailable; for Cursor CLI prefer scripts/session_history_metadata.py -->
 - Output tokens:
 - Total tokens:
 

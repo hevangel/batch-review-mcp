@@ -2,16 +2,16 @@
 
 ## Agent harness
 - Harness: Cursor CLI coding agent
-- Version: unavailable in session metadata
+- Version: not recoverable from retained artifacts (no saved `agent about --format json` output for this session)
 
 ## Model
 - Model: GPT-5.4
 - Provider: OpenAI
 
 ## Token usage
-- Input tokens: unavailable in harness
-- Output tokens: unavailable in harness
-- Total tokens: unavailable in harness
+- Input tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Output tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Total tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
 
 ## Prompt / conversation
 

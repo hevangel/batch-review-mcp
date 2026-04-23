@@ -27,6 +27,8 @@ Every PR **must** include a session history file in the `session_history/` folde
 session_history/<YYYY-MM-DD>_<short-slug>.md
 ```
 
+Use the **real date of the AI session that produced the change** for `YYYY-MM-DD`; do not copy a date from an older `session_history/` file.
+
 Example: `session_history/2026-04-15_add-markdown-export.md`
 
 ### Required fields
@@ -75,6 +77,29 @@ Example: `session_history/2026-04-15_add-markdown-export.md`
 4. The agent should produce identical (or functionally equivalent) changes.
 ```
 
+### Getting harness version and token usage
+
+For **Cursor CLI coding agent** sessions, do **not** leave `Version:` or token counts as
+`unavailable` when you can extract them locally.
+
+Use the repo utility:
+
+```bash
+# If you have a saved Cursor CLI stream-json log or terminal capture:
+uv run python scripts/session_history_metadata.py --stream-json path/to/agent-stream.jsonl --format markdown --require-usage
+```
+
+This utility:
+- reads exact token counts from the final `usage` block in `agent --print --output-format stream-json`
+- reads the local Cursor CLI version from `agent about --format json`
+- emits a ready-to-paste markdown block for the `session_history/` sections
+
+Current Cursor transcript exports (`agent-transcripts/*.jsonl`) do **not** reliably contain exact token usage, so use a saved `stream-json` capture when you need exact numbers.
+
+If you are using a harness/workflow that does **not** expose these fields yet, add or update a
+repo-local utility or project skill to extract them before finalizing the session history. Do not
+invent exact values.
+
 A template is provided at [`session_history/TEMPLATE.md`](session_history/TEMPLATE.md).
 
 ---
@@ -98,6 +123,10 @@ Use your preferred AI coding agent (GitHub Copilot, Cursor, Claude Code, Aider, 
 ### 4. Add your session history file
 
 Create `session_history/YYYY-MM-DD_your-slug.md` following the template above.
+
+Before finalizing the file, use repo-local tooling to populate the harness version and token usage
+fields when your harness can provide them. For Cursor CLI coding agent runs, use
+`scripts/session_history_metadata.py`.
 
 ### 5. Verify the build
 

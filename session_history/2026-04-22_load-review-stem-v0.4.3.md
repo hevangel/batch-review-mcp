@@ -2,16 +2,16 @@
 
 ## Agent harness
 - Harness: Cursor CLI coding agent
-- Version: unavailable in session metadata
+- Version: 2026.04.17-479fd04
 
 ## Model
 - Model: GPT-5.4
 - Provider: OpenAI
 
 ## Token usage
-- Input tokens: unavailable in harness
-- Output tokens: unavailable in harness
-- Total tokens: unavailable in harness
+- Input tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Output tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
+- Total tokens: unavailable (no saved `agent --print --output-format stream-json` capture was retained for this session)
 
 ## Prompt / conversation
 
@@ -36,7 +36,7 @@ Prepared a patch release from that saved-review stem fix by documenting the beha
 - `frontend/package.json` — bumped the frontend package version to `0.4.3`
 - `frontend/package-lock.json` — updated the lockfile package version to `0.4.3`
 - `server.json` — bumped registry version metadata and release asset URL target to `v0.4.3` ahead of the preflight SHA update
-- `session_history/2026-04-20_load-review-stem-v0.4.3.md` — recorded this patch-release prep session
+- `session_history/2026-04-22_load-review-stem-v0.4.3.md` — recorded this patch-release prep session
 
 ## Reproduction steps
 1. Check out the base commit: `git checkout 6ff4621`
