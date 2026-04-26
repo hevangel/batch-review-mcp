@@ -22,6 +22,18 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | **Resume session** | On startup, if `{output-dir}/{output}.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
 
+### GitHub-style math example
+
+Batch Review renders the same GitHub-style math forms it documents above, including inline
+`$...$`, inline dollar-backtick ``$`...`$``, and block `$$...$$` equations. For example:
+
+Inline: $`e^{i\pi} + 1 = 0`$
+
+$$
+\nabla_\theta J(\theta) = \mathbb{E}_{(s, a) \sim \pi_\theta}
+\left[\nabla_\theta \log \pi_\theta(a \mid s)\, R(s, a)\right]
+$$
+
 ---
 
 ## Architecture
