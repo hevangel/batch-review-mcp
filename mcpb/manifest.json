@@ -2,7 +2,7 @@
   "manifest_version": "0.4",
   "name": "batch-review-mcp",
   "display_name": "Batch Review",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Collaborative git diff and markdown review with a web UI and MCP stdio for agents.",
   "author": {
     "name": "hevangel",
