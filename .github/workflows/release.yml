@@ -2,9 +2,6 @@
 # metadata (server.json identifier + fileSha256 vs Linux-built .mcpb), create a GitHub
 # Release with generated notes and attach artifacts, publish the server to the MCP Registry
 # via GitHub Actions OIDC, then optionally publish to PyPI.
-#
-# Before tagging: run workflow "MCP registry preflight (Linux MCPB hash)", update
-# server.json, commit, then tag — otherwise this workflow fails on the verify step.
 name: Release
 
 on:
@@ -72,6 +69,9 @@ jobs:
 
       - name: Pack MCP bundle
         run: uv run --no-project python scripts/build_mcpb.py --repo-root "$SOURCE_DIR"
+
+      - name: Update server.json MCPB SHA from Linux build
+        run: uv run --no-project python scripts/update_server_json_mcpb_sha.py --repo-root "$SOURCE_DIR" --tag "$RELEASE_TAG"
 
       - name: List release artifacts
         run: |

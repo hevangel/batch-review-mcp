@@ -101,9 +101,9 @@ def main() -> None:
         print("  CI-built .mcpb SHA-256: %s" % actual_sha, file=sys.stderr)
         print("  server.json fileSha256: %s" % expected_sha, file=sys.stderr)
         print(
-            "  Fix: run the Actions workflow 'MCP registry preflight (Linux MCPB hash)', "
-            "copy the printed SHA into server.json, commit, then move your release tag "
-            "to that commit and re-run the Release workflow.",
+            "  Fix: run scripts/update_server_json_mcpb_sha.py for local/manual checks, "
+            "or let the Release workflow recompute the Linux SHA and patch server.json "
+            "in its workspace before publish.",
             file=sys.stderr,
         )
         sys.exit(1)
