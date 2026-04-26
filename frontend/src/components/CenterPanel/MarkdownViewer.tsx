@@ -1,6 +1,8 @@
 import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 import rehypeSlug from "rehype-slug";
 import type { Components } from "react-markdown";
 import mermaid from "mermaid";
@@ -43,6 +45,39 @@ function extract_text_content(node: unknown): string {
 
 function is_mermaid_class_name(value: unknown): value is string {
   return typeof value === "string" && /(?:^|\s)language-mermaid(?:\s|$)/.test(value);
+}
+
+function is_math_class_name(value: unknown): value is string {
+  return typeof value === "string" && /(?:^|\s)(?:language-math|math-inline|math-display)(?:\s|$)/.test(value);
+}
+
+function normalize_github_math_markdown(content: string): string {
+  const lines = content.split("\n");
+  let active_fence: { marker: string; length: number } | null = null;
+
+  return lines.map((line) => {
+    const trimmed = line.trimStart();
+    const fence_match = trimmed.match(/^(`{3,}|~{3,})/);
+
+    if (fence_match) {
+      const marker = fence_match[1][0];
+      const length = fence_match[1].length;
+      if (!active_fence) {
+        active_fence = { marker, length };
+        return line;
+      }
+      if (marker === active_fence.marker && length >= active_fence.length) {
+        active_fence = null;
+      }
+      return line;
+    }
+
+    if (active_fence) {
+      return line;
+    }
+
+    return line.replace(/\$`([^`\r\n]+?)`\$/g, (_match, expression: string) => `$${expression}$`);
+  }).join("\n");
 }
 
 function MermaidDiagram({ chart }: { chart: string }) {
@@ -205,8 +240,46 @@ function makeComponents(
             </div>
           );
         }
+        if (is_math_class_name(childProps.className)) {
+          return (
+            <div
+              className="not-prose markdown-math-block"
+              {...getLineDataProps(node)}
+            >
+              {children}
+            </div>
+          );
+        }
       }
       return withLine("pre", props as Record<string, unknown>);
+    },
+    code: (props) => {
+      const { node, children, className, ...rest } = props as {
+        node?: { position?: { start: { line: number }; end: { line: number } } };
+        children: React.ReactNode;
+        className?: string;
+        [k: string]: unknown;
+      };
+      if (is_math_class_name(className)) {
+        return (
+          <span
+            {...rest}
+            className={`markdown-math-rendered ${className ?? ""}`.trim()}
+            {...getLineDataProps(node)}
+          >
+            {children}
+          </span>
+        );
+      }
+      return (
+        <code
+          {...rest}
+          className={className}
+          {...getLineDataProps(node)}
+        >
+          {children}
+        </code>
+      );
     },
     table: (props) => withLine("table", props as Record<string, unknown>),
     a: (props) => {
@@ -300,6 +373,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const setMarkdownHashTarget = useStore((s) => s.setMarkdownHashTarget);
   const [show_mermaid_source, set_show_mermaid_source] = useState(false);
   const has_mermaid_blocks = /^```mermaid\b/m.test(content);
+  const normalized_content = normalize_github_math_markdown(content);
 
   useEffect(() => {
     set_show_mermaid_source(false);
@@ -457,8 +531,12 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
         onMouseUp={handleMouseUp}
       >
         <div className="prose prose-invert max-w-none">
-          <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSlug]} components={components}>
-            {content}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkMath]}
+            rehypePlugins={[rehypeKatex, rehypeSlug]}
+            components={components}
+          >
+            {normalized_content}
           </ReactMarkdown>
         </div>
       </div>

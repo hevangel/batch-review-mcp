@@ -85,6 +85,27 @@
   margin: 0 auto;
 }
 
+.markdown-math-block {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+}
+
+.markdown-math-rendered {
+  color: inherit;
+  font-family: inherit;
+}
+
+.markdown-math-rendered .katex {
+  color: inherit;
+}
+
+.markdown-math-rendered .katex-display {
+  margin: 0.5rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.25rem 0;
+}
+
 /*
  * Scrollbars — match Monaco / VS Code defaults (scrollbarSlider.* in monaco-editor miscColors.js;
  * vertical bar width matches editor.scrollbar.verticalScrollbarSize default 14).

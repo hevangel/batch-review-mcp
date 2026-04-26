@@ -11,7 +11,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | Feature | Description |
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
-| **Markdown rendering** | `.md` files are fully rendered, including Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
+| **Markdown rendering** | `.md` files are fully rendered, including GitHub-style math rendered with KaTeX (`$...$`, ``$`...`$``, `$$...$$`, and fenced `math` blocks) plus Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click any changed file to view an inline red/green unified diff |
@@ -183,7 +183,7 @@ Click a changed file to open it in inline diff mode.
 ### Center panel
 
 - **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
-- **Markdown files** — fully rendered. Relative image embeds render inline, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **Markdown files** — fully rendered. Relative image embeds render inline, GitHub-style math syntax renders inline and block equations with KaTeX, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
 - **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
 - **Diff view** — Monaco DiffEditor showing original (HEAD) vs working tree inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
