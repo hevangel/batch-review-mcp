@@ -138,18 +138,23 @@ This project includes a root-level [`server.json`](./server.json) for the [Model
 
 1. Bump **`version`** in `pyproject.toml`, **`mcpb/manifest.json`**, and **`server.json`** (top-level `version` plus `packages[0].identifier` URL: `.../releases/download/v0.4.3/batch-review-mcp-0.4.3.mcpb`). The pack script pins **`@anthropic-ai/mcpb`** in `scripts/build_mcpb.py` so `npm exec` does not float to unrelated CLI majors; **byte-identical** `.mcpb` hashes can still differ from **ubuntu-latest** (Node/npm, line endings, etc.), so prefer the preflight SHA from GitHub Actions when cutting a release.
 2. In GitHub **Actions**, run **[MCP registry preflight (Linux MCPB hash)](.github/workflows/mcp-registry-preflight.yml)** (`workflow_dispatch`). Open the job summary and copy the printed **SHA-256** into **`server.json`** → **`packages[0].fileSha256`**. Commit and push to `main`.
-3. Push the **tag** (e.g. `git tag v0.4.3 && git push origin v0.4.3`). The **Release** workflow runs `scripts/verify_release_mcp_registry.py` before uploading; if `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
-4. After the release exists, run **`mcp-publisher publish`** (with [`mcp-publisher`](https://github.com/modelcontextprotocol/registry/releases) and `mcp-publisher login github`). Optional: add **`PYPI_API_TOKEN`** so the same workflow can **`uv publish`** the wheel/sdist.
+3. Push the **tag** (e.g. `git tag v0.4.3 && git push origin v0.4.3`).
+4. The **Release** workflow builds the Linux artifacts again, runs `scripts/verify_release_mcp_registry.py`, creates or updates the GitHub release, publishes `server.json` to the MCP Registry via **GitHub Actions OIDC** (`mcp-publisher login github-oidc`), and publishes the wheel/sdist to PyPI when **`PYPI_API_TOKEN`** is configured. If `identifier`, versions, or **`fileSha256`** do not match the Linux-built `.mcpb`, the job **fails** so you never publish a broken asset to the registry.
 
 If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
 rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
 (for example `v0.4.3`). That manual path checks out the tag you name, overlays the current
 release metadata from `main`, and reuses the existing tag name, so you can recover the
-release without moving the tag or rebuilding from a different code revision.
+release without moving the tag or rebuilding from a different code revision. That rerun path
+also repairs MCP Registry publication because the workflow republishes `server.json` from the
+current `main` branch metadata.
 
 `scripts/build_mcpb.py` rewrites the packed archive deterministically after `mcpb pack`, so
 the Linux SHA from preflight should match the Linux SHA seen again in the Release workflow
 for the same source tree.
+
+Local `mcp-publisher login github` remains useful for one-off manual publishes, but normal
+tagged releases no longer require workstation device-code confirmation.
 
 ### CLI flags
 
