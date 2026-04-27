@@ -11,7 +11,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | Feature | Description |
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
-| **Markdown rendering** | `.md` files are fully rendered, including GitHub-style math rendered with KaTeX (`$...$`, ``$`...`$``, `$$...$$`, and fenced `math` blocks) plus Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
+| **Markdown rendering** | `.md` files are fully rendered, including GitHub-style math rendered with KaTeX (inline dollar-backtick ``$`...`$``, `$$...$$`, and fenced `math` blocks; plain `$...$` is left as text to avoid currency and stock-symbol false positives) plus Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click any changed file to view an inline red/green unified diff |
@@ -25,7 +25,8 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 ### GitHub-style math example
 
 Batch Review renders the same GitHub-style math forms it documents above, including inline
-`$...$`, inline dollar-backtick ``$`...`$``, and block `$$...$$` equations. For example:
+dollar-backtick ``$`...`$`` and block `$$...$$` equations. Plain `$...$` remains text so
+sentences about prices or stock symbols do not accidentally become math. For example:
 
 Inline: $`e^{i\pi} + 1 = 0`$
 

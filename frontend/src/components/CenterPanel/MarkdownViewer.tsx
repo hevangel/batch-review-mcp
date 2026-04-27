@@ -76,7 +76,7 @@ function normalize_github_math_markdown(content: string): string {
       return line;
     }
 
-    return line.replace(/\$`([^`\r\n]+?)`\$/g, (_match, expression: string) => `$${expression}$`);
+    return line.replace(/\$`([^`\r\n]+?)`\$/g, (_match, expression: string) => `$$${expression}$$`);
   }).join("\n");
 }
 
@@ -532,7 +532,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
       >
         <div className="prose prose-invert max-w-none">
           <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
+            remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
             rehypePlugins={[rehypeKatex, rehypeSlug]}
             components={components}
           >
