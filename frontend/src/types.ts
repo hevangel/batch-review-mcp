@@ -5,6 +5,8 @@ export interface FileInfo {
   path: string;
   is_dir: boolean;
   children?: FileInfo[];
+  children_loaded?: boolean;
+  has_children?: boolean;
   language?: string;
 }
 

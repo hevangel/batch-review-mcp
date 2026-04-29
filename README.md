@@ -190,7 +190,7 @@ tagged releases no longer require workstation device-code confirmation.
 
 ### Left panel — two tabs
 
-**Files tab** — recursive directory tree. Click a file to open it in the center panel.
+**Files tab** — lazy directory tree. The first render loads only the first few levels so large repositories stay responsive; expanding a folder loads its children on demand while deeper folders continue hydrating in the background. Click a file to open it in the center panel.
 
 **Git tab** — lists files changed relative to HEAD with status badges:
 - 🟡 `M` modified

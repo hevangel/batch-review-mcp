@@ -13,6 +13,8 @@ class FileInfo(BaseModel):
     path: str
     is_dir: bool
     children: Optional[list["FileInfo"]] = None
+    children_loaded: Optional[bool] = None
+    has_children: Optional[bool] = None
     language: Optional[str] = None
 
 

@@ -54,9 +54,21 @@ function fileIcon(name: string): string {
 /** Collect paths of every directory node in the tree. */
 function collectDirPaths(nodes: FileInfo[], out: Set<string> = new Set()): Set<string> {
   for (const n of nodes) {
-    if (n.is_dir) {
+    if (n.is_dir && (n.has_children ?? true)) {
       out.add(n.path);
       if (n.children) collectDirPaths(n.children, out);
+    }
+  }
+  return out;
+}
+
+function collectUnloadedDirPaths(nodes: FileInfo[], out: Set<string> = new Set()): Set<string> {
+  for (const n of nodes) {
+    if (n.is_dir && (n.has_children ?? true)) {
+      if (n.children_loaded === false) {
+        out.add(n.path);
+      }
+      if (n.children) collectUnloadedDirPaths(n.children, out);
     }
   }
   return out;
@@ -67,14 +79,21 @@ interface TreeNodeProps {
   depth: number;
   expandedPaths: Set<string>;
   togglePath: (path: string) => void;
+  loadingPaths: Set<string>;
+  onLoadDirectory: (path: string) => void;
 }
 
-function TreeNode({ node, depth, expandedPaths, togglePath }: TreeNodeProps) {
+function TreeNode({ node, depth, expandedPaths, togglePath, loadingPaths, onLoadDirectory }: TreeNodeProps) {
   const openFile = useStore((s) => s.openFile);
   const expanded = node.is_dir && expandedPaths.has(node.path);
+  const expandable = node.is_dir && (node.has_children ?? true);
+  const loading = node.is_dir && loadingPaths.has(node.path);
 
   const handleClick = () => {
     if (node.is_dir) {
+      if (!expanded && node.children_loaded === false && !loading) {
+        onLoadDirectory(node.path);
+      }
       togglePath(node.path);
     } else {
       openFile(node.path, "view");
@@ -91,15 +110,24 @@ function TreeNode({ node, depth, expandedPaths, togglePath }: TreeNodeProps) {
         style={{ paddingLeft: `${indent + 8}px` }}
         title={node.path}
       >
-        {node.is_dir && (
+        {expandable && (
           <span className="mr-1 text-gray-400 text-xs">
             {expanded ? "▾" : "▸"}
           </span>
         )}
+        {node.is_dir && !expandable && <span className="mr-1 w-[0.75rem]" />}
         {!node.is_dir && <span className="mr-1">{fileIcon(node.name)}</span>}
         {node.is_dir && <span className="mr-1">📁</span>}
         <span className="truncate">{node.name}</span>
       </button>
+      {expanded && loading && (
+        <div
+          className="px-2 py-0.5 text-xs text-gray-500"
+          style={{ paddingLeft: `${indent + 24}px` }}
+        >
+          Loading…
+        </div>
+      )}
       {expanded && node.children && (
         <div>
           {node.children.map((child) => (
@@ -109,6 +137,8 @@ function TreeNode({ node, depth, expandedPaths, togglePath }: TreeNodeProps) {
               depth={depth + 1}
               expandedPaths={expandedPaths}
               togglePath={togglePath}
+              loadingPaths={loadingPaths}
+              onLoadDirectory={onLoadDirectory}
             />
           ))}
         </div>
@@ -120,13 +150,24 @@ function TreeNode({ node, depth, expandedPaths, togglePath }: TreeNodeProps) {
 interface FileExplorerProps {
   files: FileInfo[];
   loading: boolean;
+  backgroundLoading: boolean;
   error: string | null;
+  loadingPaths: Set<string>;
+  onLoadDirectory: (path: string) => void;
 }
 
-export default function FileExplorer({ files, loading, error }: FileExplorerProps) {
+export default function FileExplorer({
+  files,
+  loading,
+  backgroundLoading,
+  error,
+  loadingPaths,
+  onLoadDirectory,
+}: FileExplorerProps) {
   const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set());
 
   const allDirPaths = useMemo(() => collectDirPaths(files), [files]);
+  const unloadedDirPaths = useMemo(() => collectUnloadedDirPaths(files), [files]);
 
   const togglePath = useCallback((path: string) => {
     setExpandedPaths((prev) => {
@@ -137,7 +178,10 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
     });
   }, []);
 
-  const expandAll = () => setExpandedPaths(new Set(allDirPaths));
+  const expandAll = () => {
+    setExpandedPaths(new Set(allDirPaths));
+    unloadedDirPaths.forEach(onLoadDirectory);
+  };
   const collapseAll = () => setExpandedPaths(new Set());
 
   if (loading) {
@@ -182,6 +226,9 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
           </span>
           <span className="leading-tight">Collapse all</span>
         </button>
+        {backgroundLoading && (
+          <span className="ml-auto text-xs text-gray-500">Loading deeper folders…</span>
+        )}
       </div>
       <div className="monaco-like-scrollbar overflow-y-auto flex-1 py-1">
         {files.map((f) => (
@@ -191,6 +238,8 @@ export default function FileExplorer({ files, loading, error }: FileExplorerProp
             depth={0}
             expandedPaths={expandedPaths}
             togglePath={togglePath}
+            loadingPaths={loadingPaths}
+            onLoadDirectory={onLoadDirectory}
           />
         ))}
       </div>

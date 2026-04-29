@@ -21,8 +21,12 @@ async function json<T>(url: string, init?: RequestInit): Promise<T> {
 
 // ---------- File system -------------------------------------------------
 
-export function listFiles(path = "."): Promise<FileInfo[]> {
-  return json<FileInfo[]>(`/api/files?path=${encodeURIComponent(path)}`);
+export function listFiles(path = ".", maxDepth?: number): Promise<FileInfo[]> {
+  let url = `/api/files?path=${encodeURIComponent(path)}`;
+  if (maxDepth !== undefined) {
+    url += `&max_depth=${encodeURIComponent(String(maxDepth))}`;
+  }
+  return json<FileInfo[]>(url);
 }
 
 export function getFileContent(path: string): Promise<FileContentResponse> {

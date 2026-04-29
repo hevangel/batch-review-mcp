@@ -102,29 +102,73 @@ def _detect_language(path: str) -> str:
     return _LANG_MAP.get(suffix, "plaintext")
 
 
-def _build_tree(directory: Path, repo_root: Path, depth: int = 0) -> list[FileInfo]:
-    """Recursively build a FileInfo tree for the given directory."""
+def _is_visible_entry(entry: os.DirEntry[str]) -> bool:
+    if entry.name.startswith(".") and entry.name not in (".github",):
+        # Skip hidden files/dirs except .github
+        return False
+    if entry.is_dir() and entry.name in _IGNORE_DIRS:
+        return False
+    return True
+
+
+def _visible_entries(directory: Path) -> list[os.DirEntry[str]]:
+    try:
+        return sorted(
+            (entry for entry in os.scandir(directory) if _is_visible_entry(entry)),
+            key=lambda e: (not e.is_dir(), e.name.lower()),
+        )
+    except PermissionError:
+        return []
+
+
+def _directory_has_visible_children(directory: Path) -> bool:
+    try:
+        for entry in os.scandir(directory):
+            if _is_visible_entry(entry):
+                return True
+    except PermissionError:
+        return False
+    return False
+
+
+def _build_tree(
+    directory: Path,
+    repo_root: Path,
+    depth: int = 0,
+    max_depth: Optional[int] = 10,
+) -> list[FileInfo]:
+    """Build a FileInfo tree for the given directory, optionally capped by depth."""
     if depth > 10:
         return []
     items: list[FileInfo] = []
-    try:
-        entries = sorted(os.scandir(directory), key=lambda e: (not e.is_dir(), e.name.lower()))
-    except PermissionError:
-        return []
+    entries = _visible_entries(directory)
     for entry in entries:
-        if entry.name.startswith(".") and entry.name not in (".github",):
-            # Skip hidden files/dirs except .github
-            if entry.is_dir():
-                if entry.name in _IGNORE_DIRS:
-                    continue
-            else:
-                continue
-        if entry.is_dir() and entry.name in _IGNORE_DIRS:
-            continue
         rel_path = str(Path(entry.path).relative_to(repo_root)).replace("\\", "/")
         if entry.is_dir():
-            children = _build_tree(Path(entry.path), repo_root, depth + 1)
-            items.append(FileInfo(name=entry.name, path=rel_path, is_dir=True, children=children))
+            should_load_children = max_depth is None or depth < max_depth
+            if should_load_children:
+                children = _build_tree(Path(entry.path), repo_root, depth + 1, max_depth)
+                items.append(
+                    FileInfo(
+                        name=entry.name,
+                        path=rel_path,
+                        is_dir=True,
+                        children=children,
+                        children_loaded=True,
+                        has_children=bool(children),
+                    )
+                )
+            else:
+                items.append(
+                    FileInfo(
+                        name=entry.name,
+                        path=rel_path,
+                        is_dir=True,
+                        children=None,
+                        children_loaded=False,
+                        has_children=_directory_has_visible_children(Path(entry.path)),
+                    )
+                )
         else:
             items.append(
                 FileInfo(
@@ -138,7 +182,10 @@ def _build_tree(directory: Path, repo_root: Path, depth: int = 0) -> list[FileIn
 
 
 @router.get("/files", response_model=list[FileInfo])
-def list_files(path: Optional[str] = Query(default=None)) -> list[FileInfo]:
+def list_files(
+    path: Optional[str] = Query(default=None),
+    max_depth: Optional[int] = Query(default=10, ge=0, le=10),
+) -> list[FileInfo]:
     """Return the directory tree for the given relative path (default: repo root)."""
     state = get_state()
     if path is None or path in (".", ""):
@@ -152,7 +199,7 @@ def list_files(path: Optional[str] = Query(default=None)) -> list[FileInfo]:
         raise HTTPException(status_code=404, detail="Path not found")
     if not target.is_dir():
         raise HTTPException(status_code=400, detail="Path is not a directory")
-    return _build_tree(target, state.repo_root)
+    return _build_tree(target, state.repo_root, max_depth=max_depth)
 
 
 def file_content_model_for_path(path: str) -> FileContentResponse:
