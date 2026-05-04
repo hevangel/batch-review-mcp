@@ -7,12 +7,15 @@ import MarkdownViewer from "./MarkdownViewer";
 import CodeViewer from "./CodeViewer";
 import DiffViewer from "./DiffViewer";
 import ImageViewer from "./ImageViewer";
+import HtmlViewer from "./HtmlViewer";
 const PdfViewer = lazy(() => import("./PdfViewer"));
 
 export default function CenterPanel() {
   const openFilePath = useStore((s) => s.openFilePath);
   const openMode = useStore((s) => s.openMode);
   const centerReloadEpoch = useStore((s) => s.centerReloadEpoch);
+  const gitCompare = useStore((s) => s.gitCompare);
+  const gitDiffOldPath = useStore((s) => s.gitDiffOldPath);
 
   const [fileData, setFileData] = useState<FileContentResponse | null>(null);
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
@@ -32,7 +35,7 @@ export default function CenterPanel() {
 
     const ext = openFilePath.split(".").pop()?.toLowerCase() ?? "";
     if (openMode === "diff") {
-      getGitDiff(openFilePath)
+      getGitDiff(openFilePath, gitCompare, gitDiffOldPath)
         .then(setDiffData)
         .catch((e: Error) => setError(e.message))
         .finally(() => setLoading(false));
@@ -49,7 +52,7 @@ export default function CenterPanel() {
         .catch((e: Error) => setError(e.message))
         .finally(() => setLoading(false));
     }
-  }, [openFilePath, openMode, centerReloadEpoch]);
+  }, [openFilePath, openMode, centerReloadEpoch, gitCompare, gitDiffOldPath]);
 
   if (!openFilePath) {
     return (
@@ -140,6 +143,9 @@ export default function CenterPanel() {
     if (fileData.language === "markdown") {
       return <MarkdownViewer content={fileData.content} filePath={openFilePath} />;
     }
+    if (fileData.language === "html") {
+      return <HtmlViewer content={fileData.content} filePath={openFilePath} />;
+    }
     return (
       <CodeViewer
         content={fileData.content}
@@ -162,6 +168,7 @@ function extToLang(ext: string): string {
     json: "json",
     md: "markdown",
     html: "html",
+    htm: "html",
     css: "css",
     sh: "shell",
     yaml: "yaml",

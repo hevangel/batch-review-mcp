@@ -1,7 +1,7 @@
 """Review comments REST endpoints."""
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from backend.models import BulkLoadRequest, Comment, CreateCommentRequest, SaveCommentsRequest, WsEvent
@@ -33,6 +33,9 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
         region_x2=body.region_x2,
         region_y2=body.region_y2,
         pdf_page=body.pdf_page,
+        anchor_kind=body.anchor_kind,
+        html_selector=body.html_selector,
+        html_fingerprint=body.html_fingerprint,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     return comment
@@ -109,6 +112,30 @@ async def refresh_comment_anchor(comment_id: str) -> Comment:
         raise HTTPException(status_code=404, detail="Comment not found")
     await state.broadcast(WsEvent(type="add_comment", payload=refreshed.model_dump()))
     return refreshed
+
+
+@router.post("/{comment_id}/region-screenshot", response_model=Comment)
+async def upload_region_screenshot(
+    comment_id: str,
+    file: UploadFile = File(...),
+    width: int | None = Form(default=None),
+    height: int | None = Form(default=None),
+) -> Comment:
+    """Attach a PNG screenshot to an HTML or PDF region comment."""
+    state = get_state()
+    if file.content_type not in {None, "", "image/png"}:
+        raise HTTPException(status_code=400, detail="Region screenshot must be a PNG image.")
+    data = await file.read()
+    try:
+        comment = state.attach_region_screenshot(comment_id, data, width=width, height=height)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to save screenshot: {exc}") from exc
+    if comment is None:
+        raise HTTPException(status_code=404, detail="Comment not found")
+    await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
+    return comment
 
 
 @router.delete("/{comment_id}", status_code=204)

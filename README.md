@@ -12,15 +12,17 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
 | **Markdown rendering** | `.md` files are fully rendered, including GitHub-style math rendered with KaTeX (inline dollar-backtick ``$`...`$``, `$$...$$`, and fenced `math` blocks; plain `$...$` is left as text to avoid currency and stock-symbol false positives) plus Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
+| **HTML previewing** | `.html` and `.htm` files render in a sandboxed center-panel preview with scripts disabled; select rendered elements, text, or a visual region to add source-backed comments, including a saved PNG crop for region comments |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
-| **Inline git diff** | Click any changed file to view an inline red/green unified diff |
-| **Structured comments** | Each comment captures `@filename:L10-15` line references automatically |
+| **Inline git diff** | Click changed files to view inline red/green unified diffs for local changes, a previous commit/ref vs `HEAD`, or current checkout vs a GitHub PR head |
+| **Structured comments** | Each comment captures `@filename:L10-15` line references automatically, with richer rendered-view anchors where useful |
 | **Outdated recovery** | When a text comment goes stale, refresh its stored highlight from the current file directly from the right panel |
 | **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
 | **Resume session** | On startup, if `{output-dir}/{output}.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
+| **Theme toggle** | Switch the web UI between the original dark theme and a warm light theme from the left-panel top bar |
 
 ### GitHub-style math example
 
@@ -192,21 +194,24 @@ tagged releases no longer require workstation device-code confirmation.
 
 **Files tab** — lazy directory tree. The first render loads only the first few levels so large repositories stay responsive; expanding a folder loads its children on demand while deeper folders continue hydrating in the background. Click a file to open it in the center panel.
 
-**Git tab** — lists files changed relative to HEAD with status badges:
+The top bar also includes a theme toggle next to the reload control. The app starts in dark mode and remembers your light/dark choice in the browser.
+
+**Git tab** — lists files changed relative to the active compare mode with status badges:
 - 🟡 `M` modified
 - 🟢 `A` added
 - 🔴 `D` deleted
 - ⚪ `U` untracked
 
-Click a changed file to open it in inline diff mode.
+Use **Local** for working tree/index changes vs `HEAD`, **Commit** for a previous commit/ref vs current `HEAD`, or **PR** for current checkout vs a GitHub PR head (enter a PR number or URL). Click a changed file to open it in inline diff mode with labels for the selected left and right sides.
 
 ### Center panel
 
 - **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
-- **Markdown files** — fully rendered. Relative image embeds render inline, GitHub-style math syntax renders inline and block equations with KaTeX, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
-- **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle (`Ctrl+Alt+C`).
+- **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-style math syntax renders inline and block equations with KaTeX, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **HTML files** — rendered in a sandboxed preview with scripts disabled and a toolbar toggle back to source. Hover/click rendered elements or select rendered text to create comments anchored to the source HTML line range plus an element selector/fingerprint; use **Region** mode for visual layout issues, which stores a normalized rendered-page rectangle and a PNG crop saved beside the review JSON. Repo-local CSS and image assets load through a safe raw-content endpoint.
+- **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle and save a PNG crop beside the review JSON (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
-- **Diff view** — Monaco DiffEditor showing original (HEAD) vs working tree inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
+- **Diff view** — Monaco DiffEditor showing the selected compare sides inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
 
 ### Right panel
 
@@ -219,6 +224,8 @@ Each comment shows:
 The **💾 Save Review** button saves all comments to:
 - `{output-dir}/{output}.json` — machine-readable JSON array
 - `{output-dir}/{output}.md` — human-readable Markdown report grouped by file
+
+HTML region screenshots are saved as PNG files in the same output directory and referenced by filename from the matching JSON comment.
 
 When the server starts, if that JSON file already exists it is **loaded into the session** so you can continue a saved review (invalid files are skipped with a log warning). Loading a saved review from the right-panel folder button also updates the active review stem shown in the footer so subsequent saves target that loaded review name by default.
 
@@ -315,6 +322,9 @@ Comment **add**, **update**, **delete**, **clear_all_comments**, **delete_outdat
     "reference": "@src/auth.py:L42-55",
     "text": "Token is never validated — add expiry check.",
     "highlighted_text": "…",
+    "region_screenshot_file": null,
+    "region_screenshot_width": null,
+    "region_screenshot_height": null,
     "outdated": false,
     "created_at": "2026-04-15T10:00:00+00:00"
   }

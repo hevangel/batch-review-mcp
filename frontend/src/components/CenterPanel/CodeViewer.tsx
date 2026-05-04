@@ -34,6 +34,7 @@ export default function CodeViewer({ content, language, filePath }: CodeViewerPr
   const setSelection = useStore((s) => s.setSelection);
   const activeHighlight = useStore((s) => s.activeHighlight);
   const bumpCenterReload = useStore((s) => s.bumpCenterReload);
+  const theme = useStore((s) => s.theme);
 
   const handleMount: OnMount = useCallback(
     (editor) => {
@@ -125,7 +126,7 @@ export default function CodeViewer({ content, language, filePath }: CodeViewerPr
           height="100%"
           language={language}
           value={content}
-          theme="vs-dark"
+          theme={theme === "dark" ? "vs-dark" : "vs"}
           onMount={handleMount}
           options={{
             readOnly: true,

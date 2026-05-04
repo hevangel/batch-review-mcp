@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -113,13 +114,25 @@ class AppState:
         region_x2: float | None = None,
         region_y2: float | None = None,
         pdf_page: int | None = None,
+        anchor_kind: str | None = None,
     ) -> str:
-        """Build @file:L…, @img:rect(px), @doc.pdf:pN, or @doc.pdf:pN:rect(0–1) reference string."""
+        """Build a compact human-readable reference string for a comment anchor."""
         rel = file_path
         try:
             rel = str(Path(file_path).relative_to(self.repo_root))
         except ValueError:
             pass
+        if (
+            anchor_kind == "html_region"
+            and region_x1 is not None
+            and region_y1 is not None
+            and region_x2 is not None
+            and region_y2 is not None
+        ):
+            return (
+                f"@{rel}:html-rect("
+                f"{region_x1:.4f},{region_y1:.4f},{region_x2:.4f},{region_y2:.4f})"
+            )
         # PDF region (normalized 0–1 on page); must come before generic image rect
         if (
             pdf_page is not None
@@ -156,6 +169,9 @@ class AppState:
         region_x2: float | None = None,
         region_y2: float | None = None,
         pdf_page: int | None = None,
+        anchor_kind: str | None = None,
+        html_selector: str | None = None,
+        html_fingerprint: str | None = None,
     ) -> Comment:
         """Create and store a new comment."""
         reference = self.build_reference(
@@ -164,6 +180,7 @@ class AppState:
             region_x1=region_x1, region_y1=region_y1,
             region_x2=region_x2, region_y2=region_y2,
             pdf_page=pdf_page,
+            anchor_kind=anchor_kind,
         )
         comment = Comment(
             file_path=file_path,
@@ -177,6 +194,9 @@ class AppState:
             region_x2=region_x2,
             region_y2=region_y2,
             pdf_page=pdf_page,
+            anchor_kind=anchor_kind,
+            html_selector=html_selector,
+            html_fingerprint=html_fingerprint,
         )
         self.comments[comment.id] = comment
         return comment
@@ -225,6 +245,35 @@ class AppState:
             return None
         comment.highlighted_text = current_comment_text(self.resolve_safe_path, comment)
         comment.outdated = False
+        return comment
+
+    def attach_region_screenshot(
+        self,
+        comment_id: str,
+        image_bytes: bytes,
+        width: int | None = None,
+        height: int | None = None,
+    ) -> Comment | None:
+        """Save a PNG region screenshot beside review JSON files and attach its filename."""
+        comment = self.comments.get(comment_id)
+        if comment is None:
+            return None
+        is_html_region = comment.anchor_kind == "html_region"
+        is_pdf_region = comment.pdf_page is not None and comment.region_x1 is not None
+        if not is_html_region and not is_pdf_region:
+            raise ValueError("Region screenshots are only supported for HTML and PDF region comments.")
+        if not image_bytes:
+            raise ValueError("Screenshot file is empty.")
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        suffix = "html_region" if is_html_region else f"pdf_p{int(comment.pdf_page or 0)}_region"
+        filename = f"{self.output_stem}_{comment_id}_{suffix}.png"
+        path = self.output_dir / filename
+        path.write_bytes(image_bytes)
+        comment.region_screenshot_file = filename
+        comment.region_screenshot_width = width if width and width > 0 else None
+        comment.region_screenshot_height = height if height and height > 0 else None
+        logger.info("Saved region screenshot to %s", path)
         return comment
 
     def list_review_stems(self) -> list[str]:
@@ -334,6 +383,19 @@ class AppState:
                         f"> **PDF page {c.pdf_page}** (normalized 0–1): "
                         f"({c.region_x1:.4f},{c.region_y1:.4f})–({c.region_x2:.4f},{c.region_y2:.4f})"
                     )
+                    if c.region_screenshot_file:
+                        lines.append(f"> Region screenshot: `{c.region_screenshot_file}`")
+                        if c.region_screenshot_width and c.region_screenshot_height:
+                            lines.append(
+                                f"> Size: {c.region_screenshot_width}×{c.region_screenshot_height}px"
+                            )
+                    lines.append(">")
+                elif c.region_screenshot_file:
+                    lines.append(f"> **Region screenshot:** `{c.region_screenshot_file}`")
+                    if c.region_screenshot_width and c.region_screenshot_height:
+                        lines.append(
+                            f"> Size: {c.region_screenshot_width}×{c.region_screenshot_height}px"
+                        )
                     lines.append(">")
                 elif c.region_x1 is not None:
                     lines.append(
@@ -359,11 +421,31 @@ class AppState:
         logger.info("Saved markdown report to %s", output_path)
         return output_path
 
+    def _copy_region_screenshots(self, directory: Path) -> None:
+        """Keep attached screenshot files next to the JSON/Markdown review output."""
+        source_dir = self.output_dir.resolve()
+        target_dir = directory.resolve()
+        if source_dir == target_dir:
+            return
+        target_dir.mkdir(parents=True, exist_ok=True)
+        for comment in self.comments.values():
+            filename = comment.region_screenshot_file
+            if not filename:
+                continue
+            if Path(filename).name != filename:
+                logger.warning("Skipping unsafe region screenshot filename: %s", filename)
+                continue
+            source = source_dir / filename
+            target = target_dir / filename
+            if source.exists() and source.is_file():
+                shutil.copy2(source, target)
+
     def save_comments(self, output_stem: str | None = None, output_dir: str | None = None) -> dict:
         """Save comments as both JSON and Markdown. Returns dict with both paths and data."""
         stem = output_stem or self.output_stem
         directory = Path(output_dir) if output_dir else self.output_dir
         directory.mkdir(parents=True, exist_ok=True)
+        self._copy_region_screenshots(directory)
         json_path = str(directory / f"{stem}.json")
         md_path = str(directory / f"{stem}.md")
         json_out, data = self._write_json(json_path)

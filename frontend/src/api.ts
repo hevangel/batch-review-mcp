@@ -6,6 +6,7 @@ import type {
   FileContentResponse,
   FileInfo,
   GitChange,
+  GitCompareParams,
 } from "./types";
 
 const BASE = "";
@@ -37,12 +38,37 @@ export function getFileContent(path: string): Promise<FileContentResponse> {
 
 // ---------- Git ---------------------------------------------------------
 
-export function getGitChanges(): Promise<GitChange[]> {
-  return json<GitChange[]>("/api/git/changes");
+function gitCompareQuery(compare?: GitCompareParams): string {
+  const params = new URLSearchParams();
+  if (compare?.mode && compare.mode !== "local") {
+    params.set("mode", compare.mode);
+    if (compare.base) params.set("base", compare.base);
+    if (compare.head) params.set("head", compare.head);
+    if (compare.pr) params.set("pr", compare.pr);
+  }
+  const query = params.toString();
+  return query ? `?${query}` : "";
 }
 
-export function getGitDiff(path: string): Promise<DiffResponse> {
-  return json<DiffResponse>(`/api/git/diff?path=${encodeURIComponent(path)}`);
+export function getGitChanges(compare?: GitCompareParams): Promise<GitChange[]> {
+  return json<GitChange[]>(`/api/git/changes${gitCompareQuery(compare)}`);
+}
+
+export function getGitDiff(
+  path: string,
+  compare?: GitCompareParams,
+  oldPath?: string | null,
+): Promise<DiffResponse> {
+  const params = new URLSearchParams();
+  params.set("path", path);
+  if (oldPath) params.set("old_path", oldPath);
+  if (compare?.mode && compare.mode !== "local") {
+    params.set("mode", compare.mode);
+    if (compare.base) params.set("base", compare.base);
+    if (compare.head) params.set("head", compare.head);
+    if (compare.pr) params.set("pr", compare.pr);
+  }
+  return json<DiffResponse>(`/api/git/diff?${params.toString()}`);
 }
 
 // ---------- Comments ----------------------------------------------------
@@ -64,6 +90,7 @@ export function createComment(
   highlighted_text = "",
   region?: { x1: number; y1: number; x2: number; y2: number },
   pdf_page?: number,
+  anchor?: { anchor_kind?: string; html_selector?: string; html_fingerprint?: string },
 ): Promise<Comment> {
   return json<Comment>("/api/comments", {
     method: "POST",
@@ -75,6 +102,9 @@ export function createComment(
         region_x2: region.x2, region_y2: region.y2,
       } : {}),
       ...(pdf_page != null ? { pdf_page } : {}),
+      ...(anchor?.anchor_kind ? { anchor_kind: anchor.anchor_kind } : {}),
+      ...(anchor?.html_selector ? { html_selector: anchor.html_selector } : {}),
+      ...(anchor?.html_fingerprint ? { html_fingerprint: anchor.html_fingerprint } : {}),
     }),
   });
 }
@@ -106,6 +136,22 @@ export function updateCommentText(id: string, text: string): Promise<Comment> {
 export function refreshCommentAnchor(id: string): Promise<Comment> {
   return json<Comment>(`/api/comments/${id}/refresh-anchor`, {
     method: "POST",
+  });
+}
+
+export function uploadRegionScreenshot(
+  id: string,
+  file: Blob,
+  width: number,
+  height: number,
+): Promise<Comment> {
+  const form = new FormData();
+  form.append("file", file, "region.png");
+  form.append("width", String(width));
+  form.append("height", String(height));
+  return json<Comment>(`/api/comments/${id}/region-screenshot`, {
+    method: "POST",
+    body: form,
   });
 }
 

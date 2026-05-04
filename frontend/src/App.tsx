@@ -13,6 +13,7 @@ const DEFAULT_RIGHT = 320; // w-80
 export default function App() {
   const setComments = useStore((s) => s.setComments);
   const setMcpSession = useStore((s) => s.setMcpSession);
+  const theme = useStore((s) => s.theme);
   useWebSocket();
 
   useEffect(() => {
@@ -75,7 +76,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-gray-900 text-gray-100">
+    <div
+      data-theme={theme}
+      className="flex h-screen w-screen overflow-hidden bg-gray-900 text-gray-100"
+    >
       {/* Left panel */}
       <div style={{ width: leftW, minWidth: MIN_PANEL }} className="shrink-0 h-full overflow-hidden">
         <LeftPanel />

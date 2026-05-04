@@ -27,7 +27,7 @@ interface GitChangesProps {
 }
 
 export default function GitChanges({ changes, loading, error }: GitChangesProps) {
-  const openFile = useStore((s) => s.openFile);
+  const openGitDiff = useStore((s) => s.openGitDiff);
 
   if (loading) {
     return <div className="p-3 text-gray-400 text-sm">Loading changes…</div>;
@@ -68,13 +68,13 @@ export default function GitChanges({ changes, loading, error }: GitChangesProps)
     <div className="monaco-like-scrollbar overflow-y-auto h-full py-1">
       {changes.map((c) => (
         <button
-          key={c.path}
-          onClick={() => openFile(c.path, c.status === "D" ? "view" : "diff")}
+          key={`${c.old_path ?? ""}->${c.path}`}
+          onClick={() => openGitDiff(c.path, c.old_path)}
           className="flex items-center gap-2 w-full text-left px-3 py-1 hover:bg-gray-700 rounded text-sm text-gray-200 truncate"
-          title={c.path}
+          title={c.old_path ? `${c.old_path} → ${c.path}` : c.path}
         >
           {badge(c.status)}
-          <span className="truncate">{c.path}</span>
+          <span className="truncate">{c.old_path ? `${c.old_path} → ${c.path}` : c.path}</span>
         </button>
       ))}
     </div>

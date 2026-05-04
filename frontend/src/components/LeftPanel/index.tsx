@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { FileInfo, GitChange, LeftTab } from "../../types";
+import type { FileInfo, GitChange, GitCompareParams, LeftTab } from "../../types";
 import { listFiles, getGitChanges } from "../../api";
 import { useStore } from "../../store";
 import FileExplorer from "./FileExplorer";
 import GitChanges from "./GitChanges";
 import { PANEL_BOTTOM_BAR_CLASS } from "../ui/panelBottomBar";
+import { IconMoon, IconRefresh, IconSun, toolbarBtnNeutral, toolbarIconClass } from "../ui/toolbarIcons";
 
 const INITIAL_FILE_TREE_DEPTH = 2;
 const BACKGROUND_FILE_TREE_DEPTH = 1;
@@ -64,9 +65,13 @@ function waitForIdleSlice(): Promise<void> {
 
 export default function LeftPanel() {
   const mcpSession = useStore((s) => s.mcpSession);
+  const theme = useStore((s) => s.theme);
+  const toggleTheme = useStore((s) => s.toggleTheme);
   const activeTab = useStore((s) => s.activeTab);
   const setActiveTab = useStore((s) => s.setActiveTab);
   const filesVersion = useStore((s) => s.filesVersion);
+  const gitCompare = useStore((s) => s.gitCompare);
+  const setGitCompare = useStore((s) => s.setGitCompare);
 
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [filesLoading, setFilesLoading] = useState(true);
@@ -80,6 +85,8 @@ export default function LeftPanel() {
   const [changes, setChanges] = useState<GitChange[]>([]);
   const [changesLoading, setChangesLoading] = useState(false);
   const [changesError, setChangesError] = useState<string | null>(null);
+  const [commitBase, setCommitBase] = useState("HEAD~1");
+  const [prInput, setPrInput] = useState("");
 
   const setFilesAndRef = useCallback((updater: FileInfo[] | ((current: FileInfo[]) => FileInfo[])) => {
     setFiles((current) => {
@@ -192,12 +199,23 @@ export default function LeftPanel() {
     setActiveTab(tab);
   };
 
-  // Load git changes whenever the Git tab is active.
+  const loadGitChanges = useCallback((compare: GitCompareParams) => {
+    setChangesLoading(true);
+    getGitChanges(compare)
+      .then((data) => {
+        setChanges(data);
+        setChangesError(null);
+      })
+      .catch((e: Error) => setChangesError(e.message))
+      .finally(() => setChangesLoading(false));
+  }, []);
+
+  // Load git changes whenever the Git tab or compare context changes.
   useEffect(() => {
     if (activeTab !== "git") return;
     let cancelled = false;
     setChangesLoading(true);
-    getGitChanges()
+    getGitChanges(gitCompare)
       .then((data) => {
         if (!cancelled) {
           setChanges(data);
@@ -213,21 +231,32 @@ export default function LeftPanel() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab]);
+  }, [activeTab, gitCompare]);
 
   const refreshFiles = () => {
     loadInitialFiles();
   };
 
   const refreshGit = () => {
-    setChangesLoading(true);
-    getGitChanges()
-      .then((data) => {
-        setChanges(data);
-        setChangesError(null);
-      })
-      .catch((e: Error) => setChangesError(e.message))
-      .finally(() => setChangesLoading(false));
+    loadGitChanges(gitCompare);
+  };
+
+  const applyCommitCompare = () => {
+    const base = commitBase.trim();
+    if (!base) {
+      setChangesError("Enter a previous commit or ref to compare.");
+      return;
+    }
+    setGitCompare({ mode: "commit", base, head: "HEAD" });
+  };
+
+  const applyPrCompare = () => {
+    const pr = prInput.trim();
+    if (!pr) {
+      setChangesError("Enter a PR number or URL to compare.");
+      return;
+    }
+    setGitCompare({ mode: "pr", pr });
   };
 
   return (
@@ -256,22 +285,37 @@ export default function LeftPanel() {
         </button>
         {activeTab === "files" && (
           <button
+            type="button"
             onClick={refreshFiles}
             title="Refresh file tree"
-            className="px-2 text-gray-400 hover:text-gray-200 text-lg"
+            className="px-2 text-gray-400 hover:text-gray-200"
           >
-            ↻
+            <IconRefresh className={toolbarIconClass} />
           </button>
         )}
         {activeTab === "git" && (
           <button
+            type="button"
             onClick={refreshGit}
             title="Refresh git status"
-            className="px-2 text-gray-400 hover:text-gray-200 text-lg"
+            className="px-2 text-gray-400 hover:text-gray-200"
           >
-            ↻
+            <IconRefresh className={toolbarIconClass} />
           </button>
         )}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          aria-label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+          className={`${toolbarBtnNeutral} my-1 mr-1 px-1.5`}
+        >
+          {theme === "dark" ? (
+            <IconSun className={toolbarIconClass} />
+          ) : (
+            <IconMoon className={toolbarIconClass} />
+          )}
+        </button>
       </div>
 
       {/* Panel content */}
@@ -288,11 +332,81 @@ export default function LeftPanel() {
             }}
           />
         ) : (
-          <GitChanges
-            changes={changes}
-            loading={changesLoading}
-            error={changesError}
-          />
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="border-b border-gray-700 p-2 text-xs">
+              <div className="mb-2 grid grid-cols-3 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setGitCompare({ mode: "local" })}
+                  className={`${toolbarBtnNeutral} justify-center ${gitCompare.mode === "local" ? "bg-blue-700 hover:bg-blue-600" : ""}`}
+                >
+                  Local
+                </button>
+                <button
+                  type="button"
+                  onClick={applyCommitCompare}
+                  className={`${toolbarBtnNeutral} justify-center ${gitCompare.mode === "commit" ? "bg-blue-700 hover:bg-blue-600" : ""}`}
+                >
+                  Commit
+                </button>
+                <button
+                  type="button"
+                  onClick={applyPrCompare}
+                  className={`${toolbarBtnNeutral} justify-center ${gitCompare.mode === "pr" ? "bg-blue-700 hover:bg-blue-600" : ""}`}
+                >
+                  PR
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                <label className="block">
+                  <span className="mb-1 block text-gray-400">Previous commit/ref</span>
+                  <div className="flex gap-1">
+                    <input
+                      value={commitBase}
+                      onChange={(e) => setCommitBase(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") applyCommitCompare();
+                      }}
+                      className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-1 text-gray-100 focus:border-blue-500 focus:outline-none"
+                      placeholder="HEAD~1"
+                    />
+                    <button type="button" onClick={applyCommitCompare} className={toolbarBtnNeutral}>
+                      Go
+                    </button>
+                  </div>
+                </label>
+                <label className="block">
+                  <span className="mb-1 block text-gray-400">PR number or URL</span>
+                  <div className="flex gap-1">
+                    <input
+                      value={prInput}
+                      onChange={(e) => setPrInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") applyPrCompare();
+                      }}
+                      className="min-w-0 flex-1 rounded border border-gray-600 bg-gray-700 px-2 py-1 text-gray-100 focus:border-blue-500 focus:outline-none"
+                      placeholder="123 or GitHub PR URL"
+                    />
+                    <button type="button" onClick={applyPrCompare} className={toolbarBtnNeutral}>
+                      Go
+                    </button>
+                  </div>
+                </label>
+                <p className="truncate text-gray-500" title={JSON.stringify(gitCompare)}>
+                  {gitCompare.mode === "local"
+                    ? "Local changes vs HEAD"
+                    : gitCompare.mode === "commit"
+                    ? `${gitCompare.base ?? "base"} → HEAD`
+                    : `Current checkout → ${gitCompare.pr ?? "PR"}`}
+                </p>
+              </div>
+            </div>
+            <GitChanges
+              changes={changes}
+              loading={changesLoading}
+              error={changesError}
+            />
+          </div>
         )}
       </div>
 

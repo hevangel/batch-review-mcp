@@ -12,8 +12,20 @@ export interface FileInfo {
 
 export interface GitChange {
   path: string;
+  old_path?: string | null;
   /** M=modified, A=added, D=deleted, R=renamed, ?=untracked */
   status: string;
+  base_label?: string | null;
+  head_label?: string | null;
+}
+
+export type GitCompareMode = "local" | "commit" | "pr";
+
+export interface GitCompareParams {
+  mode: GitCompareMode;
+  base?: string;
+  head?: string;
+  pr?: string;
 }
 
 export interface Comment {
@@ -31,6 +43,14 @@ export interface Comment {
   region_y2?: number | null;
   /** 1-based PDF page when ``region_*`` are normalized 0–1 on that page. */
   pdf_page?: number | null;
+  /** Optional richer anchor metadata for rendered HTML comments. */
+  anchor_kind?: string | null;
+  html_selector?: string | null;
+  html_fingerprint?: string | null;
+  /** PNG filename saved beside the review JSON for visual region comments. */
+  region_screenshot_file?: string | null;
+  region_screenshot_width?: number | null;
+  region_screenshot_height?: number | null;
   created_at: string;
   /** True when the file text at this range no longer matches highlighted_text. */
   outdated?: boolean;
@@ -45,9 +65,14 @@ export interface FileContentResponse {
 
 export interface DiffResponse {
   path: string;
+  old_path?: string | null;
   original: string;
   modified: string;
   diff: string;
+  base_label?: string | null;
+  head_label?: string | null;
+  base_ref?: string | null;
+  head_ref?: string | null;
 }
 
 // WebSocket event types
@@ -83,6 +108,9 @@ export interface HighlightPayload {
   region_y2?: number | null;
   pdf_page?: number | null;
   highlighted_text?: string | null;
+  anchor_kind?: string | null;
+  html_selector?: string | null;
+  html_fingerprint?: string | null;
 }
 
 export interface DeleteCommentPayload {
@@ -105,3 +133,5 @@ export type ViewMode = "view" | "diff";
 
 /** Which left-panel tab is active */
 export type LeftTab = "files" | "git";
+
+export type ThemeMode = "dark" | "light";

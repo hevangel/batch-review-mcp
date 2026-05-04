@@ -36,6 +36,7 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
   const setSelection = useStore((s) => s.setSelection);
   const activeHighlight = useStore((s) => s.activeHighlight);
   const bumpCenterReload = useStore((s) => s.bumpCenterReload);
+  const theme = useStore((s) => s.theme);
 
   const handleMount = useCallback(
     (editor: MonacoEditor.IStandaloneDiffEditor) => {
@@ -108,9 +109,9 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
       <div className="flex items-center justify-between gap-3 px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <span className="text-xs text-gray-400 font-mono truncate">{diff.path}</span>
-          <span className="text-xs text-red-400 shrink-0">Original (HEAD)</span>
+          <span className="text-xs text-red-400 shrink-0">{diff.base_label ?? "Original (HEAD)"}</span>
           <span className="text-xs shrink-0">→</span>
-          <span className="text-xs text-green-400 shrink-0">Modified (working tree)</span>
+          <span className="text-xs text-green-400 shrink-0">{diff.head_label ?? "Modified (working tree)"}</span>
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           <button
@@ -141,7 +142,7 @@ export default function DiffViewer({ diff, language, filePath }: DiffViewerProps
           language={language}
           original={diff.original || ""}
           modified={diff.modified || ""}
-          theme="vs-dark"
+          theme={theme === "dark" ? "vs-dark" : "vs"}
           onMount={handleMount}
           options={{
             readOnly: true,

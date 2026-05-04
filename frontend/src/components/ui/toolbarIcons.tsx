@@ -8,9 +8,9 @@ export const toolbarIconOnlyClass = "w-4 h-4 shrink-0";
 export const toolbarBtnBase =
   "inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded disabled:opacity-40 disabled:cursor-not-allowed";
 
-export const toolbarBtnNeutral = `${toolbarBtnBase} bg-gray-600 hover:bg-gray-500 text-white`;
+export const toolbarBtnNeutral = `${toolbarBtnBase} bg-gray-600 hover:bg-gray-500 text-white border border-transparent`;
 
-export const toolbarBtnPrimary = `${toolbarBtnBase} bg-blue-700 hover:bg-blue-600 text-white`;
+export const toolbarBtnPrimary = `${toolbarBtnBase} bg-blue-700 hover:bg-blue-600 text-white border border-transparent`;
 
 /** Decorative; parent supplies `aria-label` / `title`. */
 export function IconRefresh({ className }: { className?: string }) {
@@ -28,6 +28,46 @@ export function IconRefresh({ className }: { className?: string }) {
         strokeLinecap="round"
         strokeLinejoin="round"
         d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99"
+      />
+    </svg>
+  );
+}
+
+export function IconSun({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 3v2.25m0 13.5V21m9-9h-2.25M5.25 12H3m15.364-6.364-1.591 1.591M7.227 16.773l-1.591 1.591m12.728 0-1.591-1.591M7.227 7.227 5.636 5.636M16.5 12a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Z"
+      />
+    </svg>
+  );
+}
+
+export function IconMoon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      strokeWidth={1.5}
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75 9.75 9.75 0 0 1 8.25 6c0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25 9.75 9.75 0 0 0 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"
       />
     </svg>
   );

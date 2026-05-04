@@ -4,7 +4,7 @@ import "react-pdf/dist/Page/AnnotationLayer.css";
 import "react-pdf/dist/Page/TextLayer.css";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { useStore } from "../../store";
-import { createComment, pdfUrl } from "../../api";
+import { createComment, pdfUrl, uploadRegionScreenshot } from "../../api";
 import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
 
 // Keep the worker on the same pdfjs-dist version that react-pdf expects.
@@ -236,6 +236,7 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
   const [highlightDisp, setHighlightDisp] = useState<{ page: number; rects: NormRect[] } | null>(null);
   const [liveDraw, setLiveDraw] = useState<LiveDraw | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [captureError, setCaptureError] = useState<string | null>(null);
 
   const drawing = useRef<{ page: number; startX: number; startY: number; w: number; h: number } | null>(null);
   const selectionRef = useRef<PdfTextSelection | null>(null);
@@ -261,6 +262,7 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
     setHighlightDisp(null);
     setLiveDraw(null);
     setLoadError(null);
+    setCaptureError(null);
     setRegionMode(false);
     setPageHeights({});
     selectionRef.current = null;
@@ -343,9 +345,44 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
     [setPdfRegion],
   );
 
+  const capturePdfRegionScreenshot = useCallback(async (
+    page: number,
+    rect: NormRect,
+  ): Promise<{ blob: Blob; width: number; height: number } | null> => {
+    const wrap = scrollRef.current?.querySelector(`[data-pdf-page="${page}"]`) as HTMLElement | null;
+    const canvas = wrap?.querySelector(".react-pdf__Page__canvas") as HTMLCanvasElement | null;
+    if (!canvas) {
+      throw new Error("PDF page is not ready for screenshot capture.");
+    }
+    const cropX = Math.max(0, Math.floor(rect.x1 * canvas.width));
+    const cropY = Math.max(0, Math.floor(rect.y1 * canvas.height));
+    const cropW = Math.max(1, Math.ceil((rect.x2 - rect.x1) * canvas.width));
+    const cropH = Math.max(1, Math.ceil((rect.y2 - rect.y1) * canvas.height));
+    const cropCanvas = document.createElement("canvas");
+    cropCanvas.width = Math.max(1, Math.min(cropW, canvas.width - cropX));
+    cropCanvas.height = Math.max(1, Math.min(cropH, canvas.height - cropY));
+    const ctx = cropCanvas.getContext("2d");
+    if (!ctx) {
+      throw new Error("Cannot create screenshot canvas.");
+    }
+    ctx.drawImage(canvas, cropX, cropY, cropCanvas.width, cropCanvas.height, 0, 0, cropCanvas.width, cropCanvas.height);
+    const blob = await new Promise<Blob | null>((resolve) => cropCanvas.toBlob(resolve, "image/png"));
+    if (!blob) {
+      throw new Error("Cannot encode PDF region screenshot.");
+    }
+    return { blob, width: cropCanvas.width, height: cropCanvas.height };
+  }, []);
+
   const handleAddComment = useCallback(async (overrideSel?: PdfTextSelection) => {
     try {
+      setCaptureError(null);
       if (regionMode && pdfRegion) {
+        const screenshot = await capturePdfRegionScreenshot(pdfRegion.page, {
+          x1: pdfRegion.x1,
+          y1: pdfRegion.y1,
+          x2: pdfRegion.x2,
+          y2: pdfRegion.y2,
+        });
         const comment = await createComment(
           filePath,
           0,
@@ -355,7 +392,17 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
           { x1: pdfRegion.x1, y1: pdfRegion.y1, x2: pdfRegion.x2, y2: pdfRegion.y2 },
           pdfRegion.page,
         );
-        addCommentToStore(comment);
+        if (screenshot) {
+          const withScreenshot = await uploadRegionScreenshot(
+            comment.id,
+            screenshot.blob,
+            screenshot.width,
+            screenshot.height,
+          );
+          addCommentToStore(withScreenshot);
+        } else {
+          addCommentToStore(comment);
+        }
         setDrawnNorm(null);
         setPdfRegion(null);
         return;
@@ -378,8 +425,9 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
       addCommentToStore(comment);
     } catch (err) {
       console.error("Failed to create PDF comment:", err);
+      setCaptureError(err instanceof Error ? err.message : String(err));
     }
-  }, [captureTextSelection, filePath, regionMode, pdfRegion, addCommentToStore, setPdfRegion]);
+  }, [capturePdfRegionScreenshot, captureTextSelection, filePath, regionMode, pdfRegion, addCommentToStore, setPdfRegion]);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -518,6 +566,9 @@ export default function PdfViewer({ filePath, cacheBust }: PdfViewerProps) {
             <span>Add (Ctrl+Alt+C)</span>
           </button>
         </div>
+        {captureError ? (
+          <div className="basis-full text-xs text-red-400">{captureError}</div>
+        ) : null}
       </div>
 
       <div

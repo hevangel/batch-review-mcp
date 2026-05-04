@@ -1,6 +1,59 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+[data-theme="light"] {
+  color-scheme: light;
+  --br-app: #f3f0ea;
+  --br-panel: #faf8f3;
+  --br-panel-soft: #f6f2ea;
+  --br-surface: #fffaf2;
+  --br-border: #d8d1c7;
+  --br-border-strong: #c8beb0;
+  --br-text: #1f2937;
+  --br-text-soft: #334155;
+  --br-muted: #64748b;
+  --br-muted-2: #7c8899;
+  --br-hover: #ece5da;
+  --br-blue: #2563eb;
+  --br-blue-soft: #dbeafe;
+}
+
+[data-theme="light"] .bg-gray-950 { background-color: #1f2937 !important; }
+[data-theme="light"] .bg-gray-900 { background-color: var(--br-app) !important; }
+[data-theme="light"] .bg-gray-900\/70 { background-color: rgb(243 240 234 / 0.75) !important; }
+[data-theme="light"] .bg-gray-900\/80 { background-color: rgb(243 240 234 / 0.85) !important; }
+[data-theme="light"] .bg-gray-800 { background-color: var(--br-panel) !important; }
+[data-theme="light"] .bg-gray-800\/80 { background-color: rgb(250 248 243 / 0.9) !important; }
+[data-theme="light"] .bg-gray-700 { background-color: #e7e0d6 !important; }
+[data-theme="light"] .bg-gray-600 { background-color: #d8cfc2 !important; }
+[data-theme="light"] .bg-blue-700 { background-color: var(--br-blue) !important; }
+[data-theme="light"] .hover\:bg-gray-700:hover { background-color: var(--br-hover) !important; }
+[data-theme="light"] .hover\:bg-gray-600:hover { background-color: #ded6cb !important; }
+[data-theme="light"] .hover\:bg-gray-500:hover { background-color: #cfc4b6 !important; }
+[data-theme="light"] .hover\:bg-blue-600:hover { background-color: #1d4ed8 !important; }
+
+[data-theme="light"] .border-gray-800 { border-color: #e7e0d6 !important; }
+[data-theme="light"] .border-gray-700 { border-color: var(--br-border) !important; }
+[data-theme="light"] .border-gray-600 { border-color: var(--br-border-strong) !important; }
+
+[data-theme="light"] .text-white,
+[data-theme="light"] .text-gray-100 {
+  color: var(--br-text) !important;
+}
+[data-theme="light"] .text-gray-200 { color: var(--br-text-soft) !important; }
+[data-theme="light"] .text-gray-300 { color: #475569 !important; }
+[data-theme="light"] .text-gray-400 { color: var(--br-muted) !important; }
+[data-theme="light"] .text-gray-500 { color: var(--br-muted-2) !important; }
+[data-theme="light"] .text-blue-400 { color: #1d4ed8 !important; }
+[data-theme="light"] .hover\:text-gray-200:hover { color: var(--br-text-soft) !important; }
+[data-theme="light"] .hover\:text-blue-300:hover { color: #1e40af !important; }
+
+[data-theme="light"] .toolbar-light-readable,
+[data-theme="light"] .bg-blue-700.text-white,
+[data-theme="light"] .bg-blue-600.text-white {
+  color: #ffffff !important;
+}
+
 /*
  * Markdown center panel — align with Monaco standalone "vs-dark"
  * (editor.background #1E1E1E, editor.foreground #D4D4D4, editor.selectionBackground #264F78)
@@ -10,14 +63,29 @@
   color: #d4d4d4;
 }
 
+[data-theme="light"] .markdown-monaco-surface {
+  background-color: #fffaf2;
+  color: #1f2937;
+}
+
 .markdown-monaco-surface ::selection {
   background-color: #264f78;
   color: #d4d4d4;
 }
 
+[data-theme="light"] .markdown-monaco-surface ::selection {
+  background-color: #bfdbfe;
+  color: #172554;
+}
+
 .markdown-monaco-surface ::-moz-selection {
   background-color: #264f78;
   color: #d4d4d4;
+}
+
+[data-theme="light"] .markdown-monaco-surface ::-moz-selection {
+  background-color: #bfdbfe;
+  color: #172554;
 }
 
 /* prose-invert: retarget tokens to Monaco editor colors */
@@ -56,6 +124,10 @@
   background-color: rgb(255 255 255 / 8%);
 }
 
+[data-theme="light"] .markdown-monaco-jump-highlight {
+  background-color: rgb(37 99 235 / 12%);
+}
+
 .markdown-mermaid-wrapper {
   margin: 1.25rem 0;
   overflow-x: auto;
@@ -65,9 +137,18 @@
   padding: 1rem;
 }
 
+[data-theme="light"] .markdown-mermaid-wrapper {
+  border-color: #d8d1c7;
+  background-color: #f6f2ea;
+}
+
 .markdown-mermaid-loading {
   color: #9ca3af;
   font-size: 0.875rem;
+}
+
+[data-theme="light"] .markdown-mermaid-loading {
+  color: #64748b;
 }
 
 .markdown-mermaid-error {
@@ -113,6 +194,10 @@
 .monaco-like-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: rgb(121 121 121 / 0.4) transparent;
+}
+
+[data-theme="light"] .monaco-like-scrollbar {
+  scrollbar-color: rgb(100 116 139 / 0.35) transparent;
 }
 
 .monaco-like-scrollbar::-webkit-scrollbar {

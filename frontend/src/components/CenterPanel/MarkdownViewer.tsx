@@ -1,4 +1,6 @@
 import { Children, isValidElement, useEffect, useLayoutEffect, useRef, useCallback, useState } from "react";
+import Editor, { type OnMount } from "@monaco-editor/react";
+import type { editor as MonacoEditor } from "monaco-editor";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -16,18 +18,22 @@ interface MarkdownViewerProps {
 }
 
 let mermaid_initialized = false;
+let mermaid_theme: string | null = null;
 let mermaid_render_count = 0;
 
-function ensure_mermaid_initialized(): void {
-  if (mermaid_initialized) {
+type MermaidTheme = "dark" | "default";
+
+function ensure_mermaid_initialized(theme: MermaidTheme): void {
+  if (mermaid_initialized && mermaid_theme === theme) {
     return;
   }
   mermaid.initialize({
     startOnLoad: false,
-    theme: "dark",
+    theme,
     securityLevel: "strict",
   });
   mermaid_initialized = true;
+  mermaid_theme = theme;
 }
 
 function extract_text_content(node: unknown): string {
@@ -80,7 +86,7 @@ function normalize_github_math_markdown(content: string): string {
   }).join("\n");
 }
 
-function MermaidDiagram({ chart }: { chart: string }) {
+function MermaidDiagram({ chart, theme }: { chart: string; theme: MermaidTheme }) {
   const [svg, setSvg] = useState("");
   const [error, setError] = useState("");
 
@@ -89,7 +95,7 @@ function MermaidDiagram({ chart }: { chart: string }) {
 
     async function render_chart() {
       try {
-        ensure_mermaid_initialized();
+        ensure_mermaid_initialized(theme);
         const id = `batch-review-mermaid-${mermaid_render_count++}`;
         const result = await mermaid.render(id, chart);
         if (cancelled) {
@@ -110,7 +116,7 @@ function MermaidDiagram({ chart }: { chart: string }) {
     return () => {
       cancelled = true;
     };
-  }, [chart]);
+  }, [chart, theme]);
 
   if (error) {
     return (
@@ -177,6 +183,7 @@ function makeComponents(
   scrollToHash: (hash: string) => void,
   setMarkdownHashTarget: (target: { path: string; hash: string } | null) => void,
   showMermaidSource: boolean,
+  mermaidTheme: MermaidTheme,
 ): Components {
   // Shared handler — creates a wrapper with data-line
   function withLine(
@@ -236,7 +243,7 @@ function makeComponents(
               className="not-prose markdown-mermaid-wrapper"
               {...getLineDataProps(node)}
             >
-              <MermaidDiagram chart={chart} />
+              <MermaidDiagram chart={chart} theme={mermaidTheme} />
             </div>
           );
         }
@@ -362,21 +369,42 @@ function findLineAttr(node: Node | null): { start: number; end: number } | null 
   return null;
 }
 
+function applySourceHighlight(
+  editor: MonacoEditor.IStandaloneCodeEditor,
+  filePath: string,
+  highlight: { path: string; line_start: number; line_end: number } | null,
+) {
+  if (!highlight || highlight.path !== filePath) {
+    return;
+  }
+  editor.revealLinesInCenter(highlight.line_start, highlight.line_end);
+  editor.setSelection({
+    startLineNumber: highlight.line_start,
+    startColumn: 1,
+    endLineNumber: highlight.line_end,
+    endColumn: 1,
+  });
+}
+
 export default function MarkdownViewer({ content, filePath }: MarkdownViewerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const sourceEditorRef = useRef<MonacoEditor.IStandaloneCodeEditor | null>(null);
   const selectionRef = useRef<{ start: number; end: number } | null>(null);
   const addCommentToStore = useStore((s) => s.addComment);
   const activeHighlight = useStore((s) => s.activeHighlight);
   const bumpCenterReload = useStore((s) => s.bumpCenterReload);
   const openFile = useStore((s) => s.openFile);
+  const theme = useStore((s) => s.theme);
   const markdownHashTarget = useStore((s) => s.markdownHashTarget);
   const setMarkdownHashTarget = useStore((s) => s.setMarkdownHashTarget);
+  const [view_mode, set_view_mode] = useState<"preview" | "source">("preview");
   const [show_mermaid_source, set_show_mermaid_source] = useState(false);
   const has_mermaid_blocks = /^```mermaid\b/m.test(content);
   const normalized_content = normalize_github_math_markdown(content);
 
   useEffect(() => {
     set_show_mermaid_source(false);
+    set_view_mode("preview");
   }, [filePath]);
 
   const scrollToHash = useCallback((hash: string) => {
@@ -437,10 +465,35 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     selectionRef.current = { start, end };
   }, []);
 
+  useEffect(() => {
+    const editor = sourceEditorRef.current;
+    if (!editor || view_mode !== "source") {
+      return;
+    }
+    applySourceHighlight(editor, filePath, activeHighlight);
+  }, [activeHighlight, filePath, view_mode]);
+
+  const handleSourceMount: OnMount = useCallback((editor) => {
+    sourceEditorRef.current = editor;
+    applySourceHighlight(editor, filePath, useStore.getState().activeHighlight);
+  }, [filePath]);
+
   const handleAdd = useCallback(async (overrideSel?: { start: number; end: number }) => {
-    const sel = overrideSel ?? selectionRef.current;
+    let sel = overrideSel ?? selectionRef.current;
+    let highlighted_text = window.getSelection()?.toString() ?? "";
+    if (view_mode === "source") {
+      const editor = sourceEditorRef.current;
+      const sourceSelection = editor?.getSelection();
+      if (!editor || !sourceSelection) {
+        return;
+      }
+      sel = {
+        start: Math.min(sourceSelection.startLineNumber, sourceSelection.endLineNumber),
+        end: Math.max(sourceSelection.startLineNumber, sourceSelection.endLineNumber),
+      };
+      highlighted_text = editor.getModel()?.getValueInRange(sourceSelection) ?? "";
+    }
     if (!sel) return;
-    const highlighted_text = window.getSelection()?.toString() ?? "";
     window.getSelection()?.removeAllRanges();
     selectionRef.current = null;
     try {
@@ -449,13 +502,17 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     } catch (e) {
       console.error("Failed to create comment:", e);
     }
-  }, [filePath, addCommentToStore]);
+  }, [filePath, addCommentToStore, view_mode]);
 
   // Ctrl+Alt+C shortcut — read live selection at keydown time
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.altKey && e.key === "c") {
         e.preventDefault();
+        if (view_mode === "source") {
+          handleAdd();
+          return;
+        }
         // Read selection now, before any browser-side clearing
         const winSel = window.getSelection();
         if (winSel && !winSel.isCollapsed) {
@@ -474,7 +531,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [handleAdd]);
+  }, [handleAdd, view_mode]);
 
   const components = makeComponents(
     filePath,
@@ -482,6 +539,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     scrollToHash,
     setMarkdownHashTarget,
     show_mermaid_source,
+    theme === "dark" ? "dark" : "default",
   );
 
   return (
@@ -490,6 +548,26 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
       <div className="flex items-center justify-between px-3 py-1.5 bg-gray-800 border-b border-gray-700 shrink-0 gap-2">
         <span className="text-xs text-gray-400 font-mono truncate min-w-0">{filePath}</span>
         <div className="flex items-center gap-1.5 shrink-0">
+          <div className="inline-flex overflow-hidden rounded border border-gray-600">
+            <button
+              type="button"
+              onClick={() => set_view_mode("preview")}
+              className={`${view_mode === "preview" ? toolbarBtnPrimary : toolbarBtnNeutral} rounded-none border-0`}
+              title="Show rendered Markdown preview"
+              aria-pressed={view_mode === "preview"}
+            >
+              <span>Preview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => set_view_mode("source")}
+              className={`${view_mode === "source" ? toolbarBtnPrimary : toolbarBtnNeutral} rounded-none border-0`}
+              title="Show Markdown source"
+              aria-pressed={view_mode === "source"}
+            >
+              <span>Source</span>
+            </button>
+          </div>
           <button
             type="button"
             onClick={() => bumpCenterReload()}
@@ -500,7 +578,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
             <IconRefresh className={toolbarIconClass} />
             <span>Reload</span>
           </button>
-          {has_mermaid_blocks ? (
+          {has_mermaid_blocks && view_mode === "preview" ? (
             <button
               type="button"
               onClick={() => set_show_mermaid_source((value) => !value)}
@@ -524,22 +602,44 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
         </div>
       </div>
 
-      {/* Scrollable markdown body — colors match Monaco vs-dark (see index.css) */}
-      <div
-        ref={containerRef}
-        className="markdown-monaco-surface monaco-like-scrollbar flex-1 overflow-y-auto px-8 py-6 text-[13px] leading-normal"
-        onMouseUp={handleMouseUp}
-      >
-        <div className="prose prose-invert max-w-none">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
-            rehypePlugins={[rehypeKatex, rehypeSlug]}
-            components={components}
-          >
-            {normalized_content}
-          </ReactMarkdown>
+      {view_mode === "source" ? (
+        <div className="flex-1 min-h-0 overflow-hidden">
+          <Editor
+            height="100%"
+            language="markdown"
+            value={content}
+            theme={theme === "dark" ? "vs-dark" : "vs"}
+            onMount={handleSourceMount}
+            options={{
+              readOnly: true,
+              minimap: { enabled: false },
+              scrollBeyondLastLine: false,
+              fontSize: 13,
+              lineNumbers: "on",
+              wordWrap: "off",
+              renderLineHighlight: "line",
+              selectionHighlight: true,
+              occurrencesHighlight: "off",
+            }}
+          />
         </div>
-      </div>
+      ) : (
+        <div
+          ref={containerRef}
+          className="markdown-monaco-surface monaco-like-scrollbar flex-1 overflow-y-auto px-8 py-6 text-[13px] leading-normal"
+          onMouseUp={handleMouseUp}
+        >
+          <div className={`prose max-w-none ${theme === "dark" ? "prose-invert" : ""}`}>
+            <ReactMarkdown
+              remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+              rehypePlugins={[rehypeKatex, rehypeSlug]}
+              components={components}
+            >
+              {normalized_content}
+            </ReactMarkdown>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

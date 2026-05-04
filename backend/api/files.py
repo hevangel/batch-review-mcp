@@ -1,6 +1,7 @@
 """File system REST endpoints."""
 from __future__ import annotations
 
+import mimetypes
 import os
 from pathlib import Path
 from typing import Optional
@@ -238,6 +239,22 @@ def get_file_content(path: str = Query(...)) -> FileContentResponse:
         raise HTTPException(status_code=404, detail="File not found")
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Cannot read file: {exc}")
+
+
+@router.get("/raw-content/{path:path}")
+def get_raw_content(path: str):
+    """Return raw bytes for a repo-local asset used by rendered previews."""
+    state = get_state()
+    try:
+        resolved = state.resolve_safe_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if resolved.is_dir():
+        raise HTTPException(status_code=400, detail="Path is a directory")
+    media_type, _encoding = mimetypes.guess_type(resolved.name)
+    return FileResponse(str(resolved), media_type=media_type or "application/octet-stream")
 
 
 @router.get("/pdf-content")

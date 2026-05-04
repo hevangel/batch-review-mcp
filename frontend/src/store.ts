@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Comment, HighlightPayload, LeftTab, McpSessionPayload, ViewMode } from "./types";
+import type { Comment, GitCompareParams, HighlightPayload, LeftTab, McpSessionPayload, ThemeMode, ViewMode } from "./types";
 
 interface SelectionRange {
   line_start: number;
@@ -12,6 +12,11 @@ interface MarkdownHashTarget {
 }
 
 interface AppStore {
+  // Theme
+  theme: ThemeMode;
+  setTheme: (theme: ThemeMode) => void;
+  toggleTheme: () => void;
+
   // Left panel
   activeTab: LeftTab;
   setActiveTab: (tab: LeftTab) => void;
@@ -27,9 +32,15 @@ interface AppStore {
   centerReloadEpoch: number;
   bumpCenterReload: () => void;
   openFile: (path: string, mode?: ViewMode) => void;
+  openGitDiff: (path: string, oldPath?: string | null) => void;
   /** Same as openFile but increments centerReloadEpoch when path+mode already match (MCP / WS open_file). */
   openFileFromServer: (path: string, mode?: ViewMode) => void;
   closeFile: () => void;
+
+  // Git compare context for the Git tab and diff viewer
+  gitCompare: GitCompareParams;
+  setGitCompare: (compare: GitCompareParams) => void;
+  gitDiffOldPath: string | null;
 
   // Selection in center panel (for creating comments)
   selection: SelectionRange | null;
@@ -71,7 +82,31 @@ interface AppStore {
   setMcpSession: (s: McpSessionPayload | null) => void;
 }
 
+function initialTheme(): ThemeMode {
+  if (typeof window === "undefined") {
+    return "dark";
+  }
+  const saved = window.localStorage.getItem("batch-review-theme");
+  return saved === "light" || saved === "dark" ? saved : "dark";
+}
+
 export const useStore = create<AppStore>((set) => ({
+  theme: initialTheme(),
+  setTheme: (theme) => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("batch-review-theme", theme);
+    }
+    set({ theme });
+  },
+  toggleTheme: () =>
+    set((s) => {
+      const theme: ThemeMode = s.theme === "dark" ? "light" : "dark";
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem("batch-review-theme", theme);
+      }
+      return { theme };
+    }),
+
   activeTab: "files",
   setActiveTab: (tab) => set({ activeTab: tab }),
 
@@ -83,7 +118,9 @@ export const useStore = create<AppStore>((set) => ({
   centerReloadEpoch: 0,
   bumpCenterReload: () => set((s) => ({ centerReloadEpoch: s.centerReloadEpoch + 1 })),
   openFile: (path, mode = "view") =>
-    set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null, pdfRegion: null }),
+    set({ openFilePath: path, openMode: mode, selection: null, imageRegion: null, pdfRegion: null, gitDiffOldPath: null }),
+  openGitDiff: (path, oldPath = null) =>
+    set({ openFilePath: path, openMode: "diff", selection: null, imageRegion: null, pdfRegion: null, gitDiffOldPath: oldPath }),
   openFileFromServer: (path, mode = "view") =>
     set((s) => {
       const m = mode ?? "view";
@@ -94,10 +131,15 @@ export const useStore = create<AppStore>((set) => ({
         selection: null,
         imageRegion: null,
         pdfRegion: null,
+        gitDiffOldPath: null,
         centerReloadEpoch: same ? s.centerReloadEpoch + 1 : s.centerReloadEpoch,
       };
     }),
-  closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null, pdfRegion: null }),
+  closeFile: () => set({ openFilePath: null, selection: null, imageRegion: null, pdfRegion: null, gitDiffOldPath: null }),
+
+  gitCompare: { mode: "local" },
+  setGitCompare: (compare) => set({ gitCompare: compare, centerReloadEpoch: Date.now() }),
+  gitDiffOldPath: null,
 
   selection: null,
   setSelection: (sel) => set({ selection: sel }),

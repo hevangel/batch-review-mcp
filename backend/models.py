@@ -20,7 +20,10 @@ class FileInfo(BaseModel):
 
 class GitChange(BaseModel):
     path: str
+    old_path: Optional[str] = None
     status: str  # "M" modified, "A" added, "D" deleted, "R" renamed, "?" untracked
+    base_label: Optional[str] = None
+    head_label: Optional[str] = None
 
 
 class Comment(BaseModel):
@@ -37,6 +40,14 @@ class Comment(BaseModel):
     region_y2: Optional[float] = None
     #: When set with ``region_*``, anchors a PDF highlight on this 1-based page (``region_*`` are 0–1 fractions).
     pdf_page: Optional[int] = None
+    #: Optional richer anchor metadata, currently used by rendered HTML comments.
+    anchor_kind: Optional[str] = None
+    html_selector: Optional[str] = None
+    html_fingerprint: Optional[str] = None
+    #: PNG filename for a rendered-region screenshot saved beside the review JSON.
+    region_screenshot_file: Optional[str] = None
+    region_screenshot_width: Optional[int] = None
+    region_screenshot_height: Optional[int] = None
     created_at: str = Field(
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
@@ -55,6 +66,9 @@ class CreateCommentRequest(BaseModel):
     region_x2: Optional[float] = None
     region_y2: Optional[float] = None
     pdf_page: Optional[int] = None
+    anchor_kind: Optional[str] = None
+    html_selector: Optional[str] = None
+    html_fingerprint: Optional[str] = None
 
 
 class SaveCommentsRequest(BaseModel):
@@ -85,6 +99,11 @@ class FileContentResponse(BaseModel):
 
 class DiffResponse(BaseModel):
     path: str
+    old_path: Optional[str] = None
     original: str
     modified: str
     diff: str
+    base_label: Optional[str] = None
+    head_label: Optional[str] = None
+    base_ref: Optional[str] = None
+    head_ref: Optional[str] = None

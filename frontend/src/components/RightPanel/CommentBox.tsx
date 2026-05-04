@@ -74,6 +74,9 @@ export default function CommentBox({
       region_y2: comment.region_y2,
       pdf_page: comment.pdf_page ?? null,
       highlighted_text: comment.highlighted_text || null,
+      anchor_kind: comment.anchor_kind ?? null,
+      html_selector: comment.html_selector ?? null,
+      html_fingerprint: comment.html_fingerprint ?? null,
     });
   };
 
@@ -185,6 +188,13 @@ export default function CommentBox({
       {hasPdfTextAnchor && (
         <div className="text-xs text-gray-300 bg-gray-900/70 border border-gray-700 rounded px-2 py-1 whitespace-pre-wrap max-h-28 overflow-auto">
           {comment.highlighted_text}
+        </div>
+      )}
+
+      {comment.region_screenshot_file && (
+        <div className="text-xs text-gray-300 bg-gray-900/70 border border-gray-700 rounded px-2 py-1">
+          Region screenshot:{" "}
+          <span className="font-mono text-blue-400 break-all">{comment.region_screenshot_file}</span>
         </div>
       )}
 
