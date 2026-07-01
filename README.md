@@ -2,7 +2,7 @@
 
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
-![Batch Review UI — file tree on the left, rendered Markdown in the centre, and AI-generated review comments on the right](https://raw.githubusercontent.com/hevangel/batch-review-mcp/main/docs/screenshot.png)
+![Batch Review UI — file tree on the left, rendered Markdown with GitHub-style math equations and a WaveDrom timing diagram in the centre, and the review comments panel on the right](https://raw.githubusercontent.com/hevangel/batch-review-mcp/main/docs/screenshot.png)
 
 ---
 
@@ -11,7 +11,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | Feature | Description |
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
-| **Markdown rendering** | `.md` files are fully rendered, including [GitHub-style math](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions) with KaTeX: inline `$…$` and GitHub’s dollar-backtick inline form, display `$$…$$` blocks, and fenced `math` code blocks; Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
+| **Markdown rendering** | `.md` files are fully rendered, including [GitHub-style math](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions) with KaTeX: inline `$…$` and GitHub’s dollar-backtick inline form, display `$$…$$` blocks, and fenced `math` code blocks; plus Mermaid fenced diagrams and WaveDrom fenced diagrams (digital timing diagrams, bit-field/register diagrams, and logic/schematic diagrams), each with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **HTML previewing** | `.html` and `.htm` files render in a sandboxed center-panel preview with scripts disabled; select rendered elements, text, or a visual region to add source-backed comments, including a saved PNG crop for region comments |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
@@ -40,6 +40,42 @@ $$
 \nabla_\theta J(\theta) = \mathbb{E}_{(s, a) \sim \pi_\theta}
 \left[\nabla_\theta \log \pi_\theta(a \mid s)\, R(s, a)\right]
 $$
+
+### WaveDrom example
+
+Fenced ` ```wavedrom ` blocks are parsed as [WaveJSON](https://wavedrom.com/tutorial.html) (via
+JSON5, so unquoted/single-quoted keys are fine) and rendered inline, with the same
+source/rendered toolbar toggle as Mermaid. Three diagram kinds are supported, selected
+automatically from the JSON shape:
+
+A digital timing diagram (`signal`):
+
+```wavedrom
+{signal: [
+  {name: 'clk',  wave: 'p.....'},
+  {name: 'data', wave: 'x.345x', data: ['head', 'body', 'tail']},
+  {name: 'req',  wave: '0.1..0'},
+  {name: 'ack',  wave: '1.....'}
+]}
+```
+
+A bit-field / register diagram (`reg`):
+
+```wavedrom
+{reg: [
+  {bits: 7, name: 'opcode'},
+  {bits: 5, name: 'rd'},
+  {bits: 3, name: 'funct3'},
+  {bits: 5, name: 'rs1'},
+  {bits: 12, name: 'imm[11:0]'}
+], config: {bits: 32}}
+```
+
+A logic / schematic diagram (`assign`):
+
+```wavedrom
+{assign: [["z", ["|", "a", ["&", "b", "c"]]]]}
+```
 
 ---
 
@@ -211,7 +247,7 @@ Use **Local** for working tree/index changes vs `HEAD`, **Commit** for a previou
 ### Center panel
 
 - **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
-- **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-compatible math syntax (KaTeX) supports inline `$…$`, dollar-backtick inline, display `$$…$$`, and fenced math blocks ([GitHub docs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions)), Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-compatible math syntax (KaTeX) supports inline `$…$`, dollar-backtick inline, display `$$…$$`, and fenced math blocks ([GitHub docs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions)), Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, WaveDrom fenced blocks (` ```wavedrom `) render digital timing diagrams, bit-field/register diagrams (`reg`), and logic/schematic diagrams (`assign`) with the same source/rendered toolbar toggle, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
 - **HTML files** — rendered in a sandboxed preview with scripts disabled and a toolbar toggle back to source. Hover/click rendered elements or select rendered text to create comments anchored to the source HTML line range plus an element selector/fingerprint; use **Region** mode for visual layout issues, which stores a normalized rendered-page rectangle and a PNG crop saved beside the review JSON. Repo-local CSS and image assets load through a safe raw-content endpoint.
 - **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle and save a PNG crop beside the review JSON (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.

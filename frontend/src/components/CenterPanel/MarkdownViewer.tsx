@@ -8,6 +8,8 @@ import rehypeKatex from "rehype-katex";
 import rehypeSlug from "rehype-slug";
 import type { Components } from "react-markdown";
 import mermaid from "mermaid";
+import { renderAny as wavedrom_render_any, waveSkin as wavedrom_wave_skin, onml as wavedrom_onml } from "wavedrom";
+import JSON5 from "json5";
 import { useStore } from "../../store";
 import { createComment, imageUrl } from "../../api";
 import { IconPlus, IconRefresh, toolbarBtnNeutral, toolbarBtnPrimary, toolbarIconClass } from "../ui/toolbarIcons";
@@ -55,6 +57,10 @@ function is_mermaid_class_name(value: unknown): value is string {
 
 function is_math_class_name(value: unknown): value is string {
   return typeof value === "string" && /(?:^|\s)(?:language-math|math-inline|math-display)(?:\s|$)/.test(value);
+}
+
+function is_wavedrom_class_name(value: unknown): value is string {
+  return typeof value === "string" && /(?:^|\s)language-wavedrom(?:\s|$)/.test(value);
 }
 
 /**
@@ -148,6 +154,49 @@ function MermaidDiagram({ chart, theme }: { chart: string; theme: MermaidTheme }
   );
 }
 
+let wavedrom_render_count = 0;
+
+function WavedromDiagram({ source }: { source: string }) {
+  const [svg, setSvg] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    try {
+      const wave_json = JSON5.parse(source) as Record<string, unknown>;
+      const index = wavedrom_render_count++;
+      const onml_node = wavedrom_render_any(index, wave_json, wavedrom_wave_skin);
+      setSvg(wavedrom_onml.stringify(onml_node));
+      setError("");
+    } catch (e) {
+      setSvg("");
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  }, [source]);
+
+  if (error) {
+    return (
+      <div className="markdown-wavedrom-error">
+        <p className="font-medium">WaveDrom render error</p>
+        <p className="mt-1 text-xs text-red-300">{error}</p>
+        <pre className="mt-3 overflow-x-auto rounded border border-red-900/60 bg-gray-950/80 p-3 text-xs text-gray-200">
+          <code>{source}</code>
+        </pre>
+      </div>
+    );
+  }
+
+  if (!svg) {
+    return <div className="markdown-wavedrom-loading">Rendering WaveDrom diagram…</div>;
+  }
+
+  return (
+    <div
+      className="markdown-wavedrom-diagram"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
 /**
  * Build react-markdown `components` map that injects `data-line` attributes
  * onto every rendered block element.  We embed line numbers as data attributes
@@ -190,6 +239,7 @@ function makeComponents(
   setMarkdownHashTarget: (target: { path: string; hash: string } | null) => void,
   showMermaidSource: boolean,
   mermaidTheme: MermaidTheme,
+  showWavedromSource: boolean,
 ): Components {
   // Shared handler — creates a wrapper with data-line
   function withLine(
@@ -250,6 +300,17 @@ function makeComponents(
               {...getLineDataProps(node)}
             >
               <MermaidDiagram chart={chart} theme={mermaidTheme} />
+            </div>
+          );
+        }
+        if (is_wavedrom_class_name(childProps.className) && !showWavedromSource) {
+          const source = extract_text_content(childProps.children).replace(/\n$/, "");
+          return (
+            <div
+              className="not-prose markdown-wavedrom-wrapper"
+              {...getLineDataProps(node)}
+            >
+              <WavedromDiagram source={source} />
             </div>
           );
         }
@@ -405,11 +466,14 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
   const setMarkdownHashTarget = useStore((s) => s.setMarkdownHashTarget);
   const [view_mode, set_view_mode] = useState<"preview" | "source">("preview");
   const [show_mermaid_source, set_show_mermaid_source] = useState(false);
+  const [show_wavedrom_source, set_show_wavedrom_source] = useState(false);
   const has_mermaid_blocks = /^```mermaid\b/m.test(content);
+  const has_wavedrom_blocks = /^```wavedrom\b/m.test(content);
   const normalized_content = normalize_github_math_markdown(content);
 
   useEffect(() => {
     set_show_mermaid_source(false);
+    set_show_wavedrom_source(false);
     set_view_mode("preview");
   }, [filePath]);
 
@@ -455,7 +519,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
       target.classList.add("markdown-monaco-jump-highlight");
       setTimeout(() => target.classList.remove("markdown-monaco-jump-highlight"), 2000);
     }
-  }, [activeHighlight, filePath, content, show_mermaid_source]);
+  }, [activeHighlight, filePath, content, show_mermaid_source, show_wavedrom_source]);
 
   const handleMouseUp = useCallback(() => {
     const sel = window.getSelection();
@@ -546,6 +610,7 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
     setMarkdownHashTarget,
     show_mermaid_source,
     theme === "dark" ? "dark" : "default",
+    show_wavedrom_source,
   );
 
   return (
@@ -593,6 +658,17 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
               className={show_mermaid_source ? toolbarBtnPrimary : toolbarBtnNeutral}
             >
               <span>Mermaid: {show_mermaid_source ? "Source" : "Rendered"}</span>
+            </button>
+          ) : null}
+          {has_wavedrom_blocks && view_mode === "preview" ? (
+            <button
+              type="button"
+              onClick={() => set_show_wavedrom_source((value) => !value)}
+              aria-label={show_wavedrom_source ? "Show rendered WaveDrom diagrams" : "Show WaveDrom source code"}
+              title={show_wavedrom_source ? "Switch WaveDrom blocks to rendered diagrams" : "Switch WaveDrom blocks to source code"}
+              className={show_wavedrom_source ? toolbarBtnPrimary : toolbarBtnNeutral}
+            >
+              <span>WaveDrom: {show_wavedrom_source ? "Source" : "Rendered"}</span>
             </button>
           ) : null}
           <button
