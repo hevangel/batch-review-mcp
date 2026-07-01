@@ -15,6 +15,7 @@
     "@monaco-editor/react": "^4.6.0",
     "@tailwindcss/typography": "^0.5.19",
     "html2canvas": "^1.4.1",
+    "json5": "^2.2.3",
     "katex": "^0.16.45",
     "mermaid": "^11.4.0",
     "monaco-editor": "^0.52.0",
@@ -30,6 +31,7 @@
     "remark-gfm": "^4.0.0",
     "remark-math": "^6.0.0",
     "uuid": "^10.0.0",
+    "wavedrom": "^3.6.1",
     "zustand": "^5.0.0"
   },
   "devDependencies": {
