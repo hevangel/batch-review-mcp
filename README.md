@@ -2,7 +2,7 @@
 
 A collaborative code and markdown review tool that bridges human reviewers and AI agents. Both can browse files, inspect git diffs, leave structured comments, and save a final review report — all from the same UI, in real time.
 
-![Batch Review UI — file tree on the left, rendered Markdown in the centre, and AI-generated review comments on the right](https://raw.githubusercontent.com/hevangel/batch-review-mcp/main/docs/screenshot.png)
+![Batch Review UI — file tree on the left, rendered Markdown with GitHub-style math equations and a WaveDrom timing diagram in the centre, and the review comments panel on the right](https://raw.githubusercontent.com/hevangel/batch-review-mcp/main/docs/screenshot.png)
 
 ---
 
