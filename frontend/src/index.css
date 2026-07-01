@@ -166,6 +166,44 @@
   margin: 0 auto;
 }
 
+.markdown-wavedrom-wrapper {
+  margin: 1.25rem 0;
+  overflow-x: auto;
+  border: 1px solid #3e3e42;
+  border-radius: 0.5rem;
+  background-color: #252526;
+  padding: 1rem;
+}
+
+[data-theme="light"] .markdown-wavedrom-wrapper {
+  border-color: #d8d1c7;
+  background-color: #f6f2ea;
+}
+
+.markdown-wavedrom-loading {
+  color: #9ca3af;
+  font-size: 0.875rem;
+}
+
+[data-theme="light"] .markdown-wavedrom-loading {
+  color: #64748b;
+}
+
+.markdown-wavedrom-error {
+  border: 1px solid rgb(127 29 29 / 0.8);
+  border-radius: 0.5rem;
+  background-color: rgb(69 10 10 / 0.35);
+  color: #fecaca;
+  padding: 1rem;
+}
+
+.markdown-wavedrom-diagram svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
 .markdown-math-block {
   margin: 1.25rem 0;
   overflow-x: auto;
