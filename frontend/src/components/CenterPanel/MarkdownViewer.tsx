@@ -57,6 +57,12 @@ function is_math_class_name(value: unknown): value is string {
   return typeof value === "string" && /(?:^|\s)(?:language-math|math-inline|math-display)(?:\s|$)/.test(value);
 }
 
+/**
+ * Rewrite GitHub dollar-backtick inline math spans to `$latex$` before remark-math parses the document,
+ * skipping lines inside fenced code (triple backticks or triple tildes).
+ *
+ * This mirrors GitHub’s inline sizing; rewriting to `$$…$$` would incorrectly treat them as display math.
+ */
 function normalize_github_math_markdown(content: string): string {
   const lines = content.split("\n");
   let active_fence: { marker: string; length: number } | null = null;
@@ -82,7 +88,7 @@ function normalize_github_math_markdown(content: string): string {
       return line;
     }
 
-    return line.replace(/\$`([^`\r\n]+?)`\$/g, (_match, expression: string) => `$$${expression}$$`);
+    return line.replace(/\$`([^`\r\n]+?)`\$/g, (_match, expression: string) => `$${expression}$`);
   }).join("\n");
 }
 
@@ -631,7 +637,11 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
         >
           <div className={`prose max-w-none ${theme === "dark" ? "prose-invert" : ""}`}>
             <ReactMarkdown
-              remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: false }]]}
+              remarkPlugins={[
+                remarkGfm,
+                // Match GitHub math delimiters: inline $…$, block $$…$$, and fenced math (```math).
+                [remarkMath, { singleDollarTextMath: true }],
+              ]}
               rehypePlugins={[rehypeKatex, rehypeSlug]}
               components={components}
             >

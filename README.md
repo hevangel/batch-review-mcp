@@ -11,7 +11,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | Feature | Description |
 |---|---|
 | **3-panel review UI** | File explorer + git changes on the left, viewer in the center, comment thread on the right |
-| **Markdown rendering** | `.md` files are fully rendered, including GitHub-style math rendered with KaTeX (inline dollar-backtick ``$`...`$``, `$$...$$`, and fenced `math` blocks; plain `$...$` is left as text to avoid currency and stock-symbol false positives) plus Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
+| **Markdown rendering** | `.md` files are fully rendered, including [GitHub-style math](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions) with KaTeX: inline `$…$` and GitHub’s dollar-backtick inline form, display `$$…$$` blocks, and fenced `math` code blocks; Mermaid fenced diagrams with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **HTML previewing** | `.html` and `.htm` files render in a sandboxed center-panel preview with scripts disabled; select rendered elements, text, or a visual region to add source-backed comments, including a saved PNG crop for region comments |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
@@ -26,11 +26,15 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 
 ### GitHub-style math example
 
-Batch Review renders the same GitHub-style math forms it documents above, including inline
-dollar-backtick ``$`...`$`` and block `$$...$$` equations. Plain `$...$` remains text so
-sentences about prices or stock symbols do not accidentally become math. For example:
+The preview uses the delimiter rules from [Writing mathematical expressions](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions): inline `$…$`, GitHub’s dollar-backtick inline form (rewritten to `$…$` before parsing), display `$$…$$`, and fenced `math` code blocks. Rendering is **KaTeX** rather than GitHub’s MathJax, so a few uncommon macros can differ even when markdown syntax matches.
 
-Inline: $`e^{i\pi} + 1 = 0`$
+This app does not embed raw HTML in the markdown preview, so GitHub’s `<span>$</span>` workaround for literal dollar signs in prose is unavailable here—inside math, escape `$` as `\$` per GitHub’s docs.
+
+Examples:
+
+Inline: $\sqrt{3x-1}+(1+x)^2$
+
+Dollar-backtick (GitHub-compatible): $`e^{i\pi} + 1 = 0`$
 
 $$
 \nabla_\theta J(\theta) = \mathbb{E}_{(s, a) \sim \pi_\theta}
@@ -207,7 +211,7 @@ Use **Local** for working tree/index changes vs `HEAD`, **Commit** for a previou
 ### Center panel
 
 - **No file selected** — shows a lightweight getting-started panel with the app title and a short reminder: open a file or diff on the left, add comments, then save the review.
-- **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-style math syntax renders inline and block equations with KaTeX, Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
+- **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-compatible math syntax (KaTeX) supports inline `$…$`, dollar-backtick inline, display `$$…$$`, and fenced math blocks ([GitHub docs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions)), Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
 - **HTML files** — rendered in a sandboxed preview with scripts disabled and a toolbar toggle back to source. Hover/click rendered elements or select rendered text to create comments anchored to the source HTML line range plus an element selector/fingerprint; use **Region** mode for visual layout issues, which stores a normalized rendered-page rectangle and a PNG crop saved beside the review JSON. Repo-local CSS and image assets load through a safe raw-content endpoint.
 - **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle and save a PNG crop beside the review JSON (`Ctrl+Alt+C`).
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
