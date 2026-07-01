@@ -180,7 +180,7 @@ function WavedromDiagram({ source }: { source: string }) {
   }
 
   if (!svg) {
-    return <div className="markdown-wavedrom-loading">Rendering WaveDrom waveform…</div>;
+    return <div className="markdown-wavedrom-loading">Rendering WaveDrom diagram…</div>;
   }
 
   return (
@@ -658,8 +658,8 @@ export default function MarkdownViewer({ content, filePath }: MarkdownViewerProp
             <button
               type="button"
               onClick={() => set_show_wavedrom_source((value) => !value)}
-              aria-label={show_wavedrom_source ? "Show rendered WaveDrom waveforms" : "Show WaveDrom source code"}
-              title={show_wavedrom_source ? "Switch WaveDrom blocks to rendered waveforms" : "Switch WaveDrom blocks to source code"}
+              aria-label={show_wavedrom_source ? "Show rendered WaveDrom diagrams" : "Show WaveDrom source code"}
+              title={show_wavedrom_source ? "Switch WaveDrom blocks to rendered diagrams" : "Switch WaveDrom blocks to source code"}
               className={show_wavedrom_source ? toolbarBtnPrimary : toolbarBtnNeutral}
             >
               <span>WaveDrom: {show_wavedrom_source ? "Source" : "Rendered"}</span>
