@@ -177,7 +177,9 @@ def get_git_changes() -> list[dict]:
     """
     _require_mcp_session()
     from backend.api.git_ops import git_changes
-    changes = git_changes()
+    # Call with explicit locals; FastAPI Query defaults are not resolved when
+    # the route handler is invoked as a plain function from MCP.
+    changes = git_changes(mode="local", base=None, head=None, pr=None)
     return [c.model_dump() for c in changes]
 
 
@@ -193,7 +195,11 @@ def get_git_diff(path: str) -> dict:
     """
     _require_mcp_session()
     from backend.api.git_ops import git_diff
-    result = git_diff(path=path)
+    # Call with explicit locals; FastAPI Query defaults are not resolved when
+    # the route handler is invoked as a plain function from MCP.
+    result = git_diff(
+        path=path, old_path=None, mode="local", base=None, head=None, pr=None
+    )
     return result.model_dump()
 
 
