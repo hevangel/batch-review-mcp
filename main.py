@@ -124,6 +124,21 @@ def _find_free_port(preferred: int, host: str = "127.0.0.1") -> int:
 
 
 def cli_main() -> None:
+    # ---- CLI client mode (token-efficient agent interface) ----------------
+    # If the first argument is a known CLI verb, dispatch to the CLI client
+    # instead of the legacy server-start parser. This preserves backward
+    # compatibility: `batch-review --mcp --root .` etc. still work because
+    # those flags never collide with verb names.
+    if len(sys.argv) > 1:
+        from backend.cli_client import CLI_VERBS, _VERB_ALIASES
+
+        first = sys.argv[1]
+        if first in CLI_VERBS or first in _VERB_ALIASES:
+            from backend.cli_client import run_cli_verb
+
+            run_cli_verb()
+            return
+
     parser = argparse.ArgumentParser(
         description="Batch Review — collaborative markdown/code review tool",
     )
@@ -216,6 +231,36 @@ def cli_main() -> None:
     from backend.state import get_state
 
     get_state().set_web_app_url(url)
+
+    # Write a discovery file so the CLI client (batch-review <verb>) can find
+    # this server. Cleaned up on shutdown via atexit.
+    import json as _json
+
+    port_file = repo_root / ".batch_review" / "server.json"
+
+    def _write_port_file() -> None:
+        try:
+            port_file.parent.mkdir(parents=True, exist_ok=True)
+            port_file.write_text(
+                _json.dumps(
+                    {"web_url": url, "pid": os.getpid(), "port": port, "started_at": time.time()},
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        except OSError:
+            pass
+
+    def _remove_port_file() -> None:
+        try:
+            port_file.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    _write_port_file()
+    import atexit
+
+    atexit.register(_remove_port_file)
 
     def schedule_browser_open() -> None:
         """After a short delay, open the UI in the browser (default); skip if --no-browser."""

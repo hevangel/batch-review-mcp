@@ -237,3 +237,102 @@ async def load_review_by_stem(body: dict) -> JSONResponse:
         )
     )
     return JSONResponse([c.model_dump() for c in loaded])
+
+
+# ---------------------------------------------------------------------------
+# CLI / agent UI-control endpoints (mirror the MCP-only UI tools, ungated)
+#
+# These let the batch-review CLI client drive the browser UI the same way the
+# MCP tools do. They broadcast the same WsEvent types so the frontend reacts
+# identically whether the trigger is a human, an MCP tool call, or a CLI verb.
+# ---------------------------------------------------------------------------
+
+
+@util_router.post("/ui/open")
+async def ui_open_file(body: dict) -> JSONResponse:
+    """Open a file in the browser UI center panel (mirrors open_file_in_ui MCP tool).
+
+    Body: ``{"path": str, "mode": "view" | "diff"}``
+    """
+    state = get_state()
+    path = body.get("path")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    mode = body.get("mode", "view")
+    await state.broadcast(WsEvent(type="open_file", payload={"path": path, "mode": mode}))
+    return JSONResponse({"ok": True, "path": path, "mode": mode})
+
+
+@util_router.post("/ui/highlight")
+async def ui_highlight(body: dict) -> JSONResponse:
+    """Scroll to and highlight a location in the browser UI (mirrors highlight_in_ui).
+
+    Body fields (all optional except ``path``):
+      - ``path`` (required): file path relative to repo root.
+      - ``line_start``, ``line_end``: 1-based line range for source files.
+      - ``pdf_page``: 1-based page index for PDF region highlights.
+      - ``region_x1``–``region_y2``: PDF (0–1 fractions) or image (pixels).
+    """
+    state = get_state()
+    path = body.get("path")
+    if not path:
+        raise HTTPException(status_code=400, detail="path is required")
+    await state.broadcast(
+        WsEvent(type="highlight", payload={k: v for k, v in body.items()})
+    )
+    return JSONResponse({"ok": True, "path": path})
+
+
+@util_router.post("/ui/jump")
+async def ui_jump_to_comment(body: dict) -> JSONResponse:
+    """Open and highlight the anchor for an existing comment (mirrors jump_to_comment_in_ui).
+
+    Body: ``{"comment_id": str}``
+    """
+    state = get_state()
+    comment_id = body.get("comment_id")
+    if not comment_id:
+        raise HTTPException(status_code=400, detail="comment_id is required")
+    comment = state.comments.get(comment_id)
+    if comment is None:
+        raise HTTPException(status_code=404, detail=f"Comment {comment_id} not found")
+    await state.broadcast(
+        WsEvent(
+            type="highlight",
+            payload={
+                "path": comment.file_path,
+                "line_start": comment.line_start,
+                "line_end": comment.line_end,
+                "region_x1": comment.region_x1,
+                "region_y1": comment.region_y1,
+                "region_x2": comment.region_x2,
+                "region_y2": comment.region_y2,
+                "pdf_page": comment.pdf_page,
+                "highlighted_text": comment.highlighted_text,
+            },
+        )
+    )
+    return JSONResponse({"ok": True, "comment_id": comment_id, "reference": comment.reference})
+
+
+@util_router.post("/session/init")
+async def init_session(body: dict) -> JSONResponse:
+    """Register an agent client with the server (mirrors init_batch_review_session MCP tool).
+
+    Body: ``{"coding_agent": str, "model_name"?: str, "client_version"?: str}``
+
+    Unlike the MCP tool, this endpoint is ungated — all REST routes work without it.
+    But calling it lets the UI show which agent is connected.
+    """
+    state = get_state()
+    coding_agent = body.get("coding_agent", "")
+    try:
+        info = state.register_mcp_session(
+            coding_agent=coding_agent,
+            model_name=body.get("model_name", ""),
+            client_version=body.get("client_version", ""),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await state.broadcast(WsEvent(type="mcp_session", payload=dict(info)))
+    return JSONResponse({"ok": True, **info})

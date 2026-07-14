@@ -11,6 +11,19 @@
 - When creating `session_history/` files, use the **actual current session date** in the filename (`YYYY-MM-DD`); do not copy a prior date from older session files.
 - For Cursor CLI coding agent session history, populate harness version and token usage with `uv run python scripts/session_history_metadata.py ...`; do not write `unavailable` if the repo utility can extract exact values.
 
+## CLI client mode
+
+The `batch-review` command supports two interfaces:
+
+- **Server mode** (legacy flags): `batch-review [--mcp] [--root .] [--port 9000]` — starts the review server + web UI. Backward compatible with all existing MCP host configs (`.mcp.json`, `.cursor/mcp.json`, etc.).
+- **CLI client mode** (subcommand verbs): `batch-review <verb> [args]` — token-efficient agent client that talks to a running server over REST. Verbs: `start`, `stop`, `changes`, `diff`, `add-comment`, `list-comments`, `save`, `load`, etc. See [`backend/cli_client.py`](backend/cli_client.py) and [`skills/batch-review/SKILL.md`](skills/batch-review/SKILL.md).
+
+The dispatch rule: if `sys.argv[1]` is a known CLI verb, run the client; otherwise fall through to the legacy server parser. **Never name a CLI verb that collides with a legacy flag** (`--mcp`, `--root`, `--dev`, etc.).
+
+## Claude Code plugin
+
+The repo ships a Claude Code plugin at [`.claude-plugin/`](.claude-plugin/) (CLI-only — no MCP server entry, so agents don't load tool schemas into context). The plugin bundles the [`batch-review`](skills/batch-review/SKILL.md) skill and a [`/batch-review`](commands/batch-review.md) slash command.
+
 ## UI Layout Rules
 
 - **CommentBox** (`frontend/src/components/RightPanel/CommentBox.tsx`): the `@filename:L…` reference link MUST always be the **first element** inside the card, above the textarea. Do not move it to the bottom.

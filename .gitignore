@@ -33,6 +33,9 @@ frontend/dist/
 review_comments.json
 review_comments.md
 
+# CLI server discovery files (generated at runtime by `batch-review start`)
+.batch_review/
+
 # IDEs — keep shared Copilot MCP config; ignore other VS Code workspace files
 .vscode/*
 !.vscode/mcp.json

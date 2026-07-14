@@ -1,0 +1,14 @@
+{
+    "name": "batch-review",
+    "version": "1.2.0",
+    "description": "Collaborative code review CLI — browse diffs, leave structured comments, and save review reports. Token-efficient alternative to the MCP server: agents invoke `batch-review <verb>` via their shell tool instead of loading tool schemas into context.",
+    "author": {
+        "name": "hevangel",
+        "url": "https://github.com/hevangel"
+    },
+    "license": "MIT",
+    "homepage": "https://github.com/hevangel/batch-review-mcp",
+    "repository": "https://github.com/hevangel/batch-review-mcp",
+    "skills": "skills",
+    "commands": "commands"
+}

@@ -1,0 +1,13 @@
+{
+    "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+    "name": "batch-review",
+    "version": "1.0.0",
+    "description": "Batch Review — collaborative code review with a web UI. Browse diffs, leave structured comments anchored to line ranges, and save review reports. Ships a token-efficient CLI for coding agents plus a web UI for human reviewers.",
+    "plugins": [
+        {
+            "name": "batch-review",
+            "source": "./",
+            "description": "Collaborative code review CLI + web UI for coding agents and human reviewers."
+        }
+    ]
+}

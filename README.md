@@ -18,7 +18,7 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | **Inline git diff** | Click changed files to view inline red/green unified diffs for local changes, a previous commit/ref vs `HEAD`, or current checkout vs a GitHub PR head |
 | **Structured comments** | Each comment captures `@filename:L10-15` line references automatically, with richer rendered-view anchors where useful |
 | **Outdated recovery** | When a text comment goes stale, refresh its stored highlight from the current file directly from the right panel |
-| **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes |
+| **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes. Also ships a token-efficient **CLI client mode** (`batch-review <verb>`) for coding agents and a **Claude Code plugin** with a review-workflow skill |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
 | **Resume session** | On startup, if `{output-dir}/{output}.json` already exists, comments are loaded automatically |
 | **Cross-platform** | Runs on Windows and Linux |
@@ -88,6 +88,7 @@ flowchart LR
     CLI["CLI entry point<br/>`uv run batch-review`"]
     Browser["Browser UI<br/>React + Zustand"]
     McpHost["MCP host<br/>Cursor / Claude Desktop / VS Code / other clients"]
+    AgentCli["Coding agent<br/>Claude Code / Cursor CLI / Codex<br/>`batch-review <verb>`"]
 
     subgraph Backend["Batch Review backend process"]
         Server["FastAPI app<br/>static frontend `/`<br/>REST `/api/*`<br/>WebSocket `/ws`"]
@@ -97,6 +98,7 @@ flowchart LR
 
     Repo["Git repository under review"]
     Output["Saved review output<br/>`review_comments.json`<br/>`review_comments.md`"]
+    PortFile[".batch_review/server.json<br/>discovery file"]
 
     CLI --> Server
     CLI --> Mcp
@@ -106,6 +108,9 @@ flowchart LR
     Server --> State
     Mcp --> State
     McpHost -->|"stdio or HTTP MCP"| Mcp
+    AgentCli -->|"REST `/api/*`"| Server
+    AgentCli -.->|"reads for discovery"| PortFile
+    Server -.->|"writes on start"| PortFile
     State -->|"read files, diffs, existing review data"| Repo
     State -->|"save/load review reports"| Output
     State -.->|"broadcast UI events"| Browser
@@ -114,6 +119,7 @@ flowchart LR
 - The browser loads the React app from the FastAPI server, fetches files/comments/config over REST, and stays synchronized through `/ws`.
 - MCP tools and REST routes both operate on the same in-memory `AppState`, so agent-created comments appear in the UI immediately.
 - In `--mcp` mode, the HTTP server keeps the web UI available while FastMCP also runs over stdio for editor and CLI hosts.
+- In **CLI client mode**, coding agents invoke `batch-review <verb>` (e.g. `add-comment`, `diff`) which calls the same REST endpoints — no MCP tool schemas loaded into agent context. The server writes `.batch_review/server.json` on startup so CLI verbs can discover it.
 
 ---
 
@@ -185,6 +191,76 @@ The HTTP server starts in a background thread (so the browser UI remains accessi
 }
 ```
 
+### CLI client mode (token-efficient agent interface)
+
+For coding agents (Claude Code, Cursor CLI, Codex, etc.), the CLI client mode is more token-efficient than loading 18 MCP tool schemas into context. Each verb is one process invocation that emits a single JSON document to stdout. The CLI talks to a running server over REST, so every comment and highlight also appears in the human reviewer's browser UI in real time.
+
+```bash
+# Start the server in the background (browser opens by default)
+batch-review start --root .
+# {"web_url": "http://127.0.0.1:9000", "pid": 12345, "port": 9000}
+
+# List changed files
+batch-review changes
+# [{"path": "main.py", "status": "M", ...}, ...]
+
+# Inspect a diff
+batch-review diff main.py
+
+# Add a comment anchored to a line range
+batch-review add-comment main.py 10 15 "This null check is redundant."
+
+# Save the review report (JSON + Markdown)
+batch-review save
+
+# Stop the server when done
+batch-review stop
+```
+
+**Server discovery** — verbs auto-discover a running server in priority order: the `BATCH_REVIEW_WEB_URL` env var, then `<repo_root>/.batch_review/server.json` (written by `start`), then probing ports 9000–9999.
+
+**Verb reference** — all verbs accept `--root PATH` (default: cwd):
+
+| Verb | Args | Description |
+|---|---|---|
+| `start` | `[--port N] [--no-browser]` | Start the server in the background |
+| `stop` | — | Stop the running server |
+| `config` | — | Server config (output stem, dir, web URL) |
+| `url` | — | Connection URLs (web UI, WebSocket, MCP HTTP) |
+| `changes` | `[--mode local\|commit\|pr] [--base REF] [--pr N]` | List changed files |
+| `diff` | `<path> [--mode ...]` | Unified diff + original/modified content |
+| `ls` | `[path] [--depth N]` | List files/directories |
+| `file` | `<path>` | Read file content + line count + language |
+| `add-comment` | `<path> <L1> <L2> [text] [--highlighted TEXT]` | Add a comment |
+| `list-comments` | — | List all comments |
+| `update-comment` | `<id> <text>` | Edit a comment's text |
+| `delete-comment` | `<id>` | Delete one comment |
+| `clear` | — | Delete all comments |
+| `delete-outdated` | — | Delete stale comments |
+| `recompute-stale` | — | Recompute outdated flags |
+| `save` | `[--stem NAME] [--dir DIR]` | Save to JSON + Markdown |
+| `load` | `<stem>` | Load a saved review |
+| `list-reviews` | — | List saved review stems |
+| `open` | `<path> [--mode view\|diff]` | Open a file in the browser UI |
+| `highlight` | `<path> <L1> <L2>` | Highlight a line range in the UI |
+| `jump` | `<comment-id>` | Jump to a comment's location in the UI |
+
+Output contract: JSON on stdout, progress messages on stderr, non-zero exit on error. The `start` verb is backward-compatible — if a server is already running, it reports the existing URL instead of starting a duplicate.
+
+### Claude Code plugin
+
+This repo ships a Claude Code plugin (CLI-only — no MCP server entry, so agents don't load tool schemas into context). Install it from the marketplace:
+
+```
+/plugin marketplace add hevangel/batch-review-mcp
+/plugin install batch-review@batch-review
+```
+
+The plugin bundles:
+- **Skill** ([`skills/batch-review/SKILL.md`](skills/batch-review/SKILL.md)) — teaches the agent the review workflow using CLI verbs.
+- **Command** ([`commands/batch-review.md`](commands/batch-review.md)) — a `/batch-review` slash command that triggers the skill.
+- **Plugin manifest** ([`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)) + **marketplace** ([`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)).
+
 ### Official MCP registry
 
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The entry uses **`registryType": "mcpb"`**: the download URL must be a **public** GitHub release asset, and **`fileSha256`** must match those bytes **exactly** (the [Release](.github/workflows/release.yml) workflow builds the `.mcpb` on **Linux**, which can differ from a pack produced on Windows).
@@ -215,6 +291,8 @@ tagged releases no longer require workstation device-code confirmation.
 
 ### CLI flags
 
+The `batch-review` command dispatches on its first argument: if it's a known **CLI verb** (`start`, `stop`, `changes`, `diff`, `add-comment`, etc.), it runs as a token-efficient client that talks to a running server over REST. Otherwise, it runs as the server with these flags:
+
 | Flag | Default | Description |
 |---|---|---|
 | `--root PATH` | current directory | Git repository to review |
@@ -225,6 +303,8 @@ tagged releases no longer require workstation device-code confirmation.
 | `--mcp` | off | Enable MCP stdio transport |
 | `--no-browser` | false (omit) | **Normal behavior** (flag omitted): browser opens automatically ~1.2s after the server is ready in standalone, `--dev`, and `--mcp`. Pass `--no-browser` to disable. |
 | `--skip-build` | off | Skip the npm build step |
+
+See **CLI client mode** above for the full verb reference, or run `batch-review --help`.
 
 ---
 
