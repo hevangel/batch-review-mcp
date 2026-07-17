@@ -88,9 +88,18 @@ def _remove_port_file(repo_root: Path) -> None:
 
 
 def _probe_url(base_url: str, timeout: float = 1.5) -> bool:
-    """Return True if *base_url* responds with a Batch Review server."""
+    """Return True if *base_url* is a running Batch Review server.
+
+    We verify by hitting ``/api/config`` and checking that it returns valid
+    JSON — a plain HTTP 200 from any unrelated service (e.g. ASUS Armoury
+    Crate) would pass a bare connectivity check but will fail here because it
+    won't return a JSON object on that path.
+    """
     try:
-        urllib.request.urlopen(base_url, timeout=timeout)
+        with urllib.request.urlopen(f"{base_url}/api/config", timeout=timeout) as resp:
+            raw = resp.read()
+        # Must be parseable JSON (even an empty object {} is fine).
+        json.loads(raw)
         return True
     except Exception:
         return False

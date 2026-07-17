@@ -46,7 +46,7 @@ User confirmed: auto-discover + start/stop verbs (not auto-start), CLI-only plug
 Created all files, verified end-to-end: `start` → `changes` → `diff` → `add-comment` → `list-comments` → `update-comment` → `open` → `highlight` → `save` → `delete-comment` → `stop`. Verified backward compat with `scripts/test_mcp_client.py`. Verified error handling (no server → JSON error + exit 1).
 
 ## Files changed
-- `backend/cli_client.py` — new file: CLI client module with server discovery, HTTP client (stdlib urllib), 22 verbs, argparse dispatch
+- `backend/cli_client.py` — new file: CLI client module with server discovery, HTTP client (stdlib urllib), 22 verbs, argparse dispatch. Later fixed: port probe now validates `/api/config` returns JSON (avoids false positives from unrelated local web services like ASUS Armoury Crate).
 - `backend/api/reviews.py` — added 4 new REST endpoints: `/api/ui/open`, `/api/ui/highlight`, `/api/ui/jump`, `/api/session/init` (mirror MCP-only UI tools, ungated)
 - `main.py` — added CLI verb dispatch at top of `cli_main()` (backward-compatible); added port-file writing for server discovery
 - `.claude-plugin/plugin.json` — new file: Claude Code plugin manifest (CLI-only, no mcpServers)
