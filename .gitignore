@@ -41,6 +41,9 @@ review_comments.md
 !.vscode/mcp.json
 .idea/
 
+# ZCode agent working files (local plans, session scratch)
+.zcode/
+
 # Claude Code local overrides (do not commit)
 .claude/
 *.suo
