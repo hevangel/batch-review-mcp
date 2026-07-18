@@ -58,7 +58,7 @@ Created all files, verified end-to-end: `start` → `changes` → `diff` → `ad
 - `server.json` — version bump 1.1.0 → 1.2.0 (SHA will be recomputed by Release workflow)
 - `.gitignore` — added `.batch_review/` (runtime discovery files)
 - `AGENTS.md` — added CLI client mode and Claude plugin documentation sections
-- `README.md` — added CLI client mode section, Claude plugin section, updated features table, CLI flags section, and architecture diagram
+- `README.md` — added CLI client mode section, Claude plugin section, agent skill (skills.sh) install section, updated features table, CLI flags section, and architecture diagram
 
 ## Reproduction steps
 1. Check out the base commit: `git checkout 9e57a18`

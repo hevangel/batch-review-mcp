@@ -261,6 +261,23 @@ The plugin bundles:
 - **Command** ([`commands/batch-review.md`](commands/batch-review.md)) — a `/batch-review` slash command that triggers the skill.
 - **Plugin manifest** ([`.claude-plugin/plugin.json`](.claude-plugin/plugin.json)) + **marketplace** ([`.claude-plugin/marketplace.json`](.claude-plugin/marketplace.json)).
 
+### Agent skill (skills.sh)
+
+The review-workflow skill is also installable into any agent that supports the open [Agent Skills](https://github.com/vercel-labs/skills) standard (Claude Code, Cursor, Codex, Gemini CLI, Copilot, ZCode, and 60+ others) via the [`npx skills`](https://www.skills.sh/) CLI:
+
+```bash
+# Install globally (available across all your projects)
+npx skills add hevangel/batch-review-mcp --global --yes
+
+# Or install into a specific agent only
+npx skills add hevangel/batch-review-mcp --skill batch-review --agent claude-code --global
+
+# List available skills without installing
+npx skills add hevangel/batch-review-mcp --list
+```
+
+Once installed, the skill auto-triggers when you ask your agent to review code, inspect diffs, or leave review comments. Discovery and listing on [skills.sh](https://www.skills.sh/) happens automatically via install telemetry — there is no manual submission step.
+
 ### Official MCP registry
 
 This project includes a root-level [`server.json`](./server.json) for the [Model Context Protocol registry](https://registry.modelcontextprotocol.io/) (preview). The entry uses **`registryType": "mcpb"`**: the download URL must be a **public** GitHub release asset, and **`fileSha256`** must match those bytes **exactly** (the [Release](.github/workflows/release.yml) workflow builds the `.mcpb` on **Linux**, which can differ from a pack produced on Windows).
