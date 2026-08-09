@@ -4,6 +4,7 @@ from __future__ import annotations
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
+from backend.mcp_compat import protocol_info
 from backend.models import BulkLoadRequest, Comment, CreateCommentRequest, SaveCommentsRequest, WsEvent
 from backend.state import get_state
 
@@ -196,7 +197,7 @@ async def bulk_load_comments(body: BulkLoadRequest) -> list[Comment]:
 
 @util_router.get("/config")
 def get_config() -> JSONResponse:
-    """Return the current server configuration (output_stem, output_dir, web_ui_url, mcp_session)."""
+    """Return the current server configuration (output_stem, output_dir, web_ui_url, mcp_session, protocol)."""
     state = get_state()
     return JSONResponse(
         {
@@ -204,6 +205,7 @@ def get_config() -> JSONResponse:
             "output_dir": str(state.output_dir),
             "web_ui_url": state.web_app_url,
             "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
+            "protocol": protocol_info(),
         }
     )
 

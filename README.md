@@ -388,6 +388,27 @@ A typical agent flow is:
 4. Add or update comments, optionally driving the shared UI with open/highlight/jump tools
 5. Save or load the review session with the review file tools
 
+### Protocol compatibility
+
+This server speaks the **legacy MCP era** — protocol revision `2025-11-25` (the `initialize` handshake era). That is the era every released MCP host (Cursor, Claude Desktop, VS Code, Copilot, Codex, Gemini CLI) uses today, so all existing clients connect without changes.
+
+The MCP spec published a major redesign — revision **[`2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)** — that makes the protocol stateless: the `initialize` handshake is replaced by per-request `_meta.io.modelcontextprotocol/*` fields, the streamable HTTP transport adds `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers, and servers must implement `server/discover`. Supporting that era requires `mcp>=2.0.0` at the SDK level.
+
+This server is built on [`fastmcp`](https://gofastmcp.com), whose latest stable PyPI release (3.x) pins `mcp<2.0`. Native dual-era support — one deployment serving both modern and legacy clients, negotiated per connection — is promised by `fastmcp` 4.x, which is not yet published to PyPI. When that release ships, bumping the dependency pin flips the server to dual-era with no other code changes, because all protocol negotiation is delegated to the `fastmcp`/`mcp` libraries.
+
+The active protocol version is surfaced in the `get_config` MCP tool and the `GET /api/config` REST endpoint under a `protocol` key:
+
+```json
+{
+  "active_protocol_version": "2025-11-25",
+  "supported_protocol_versions": ["2025-11-25"],
+  "pending_protocol_versions": ["2026-07-28"],
+  "modern_era_available": false
+}
+```
+
+The single source of truth for these values is [`backend/mcp_compat.py`](backend/mcp_compat.py).
+
 ### Repo-local MCP host configuration
 
 This repository includes checked-in defaults so common agents can use **Batch Review** and **Playwright** together:

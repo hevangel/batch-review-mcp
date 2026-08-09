@@ -17,13 +17,15 @@ Requirements:
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 import time
-import urllib.request
-import urllib.error
-import json
 from pathlib import Path
+
+# Make ``backend`` importable when running as a top-level script.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from backend.local_url_guard import LocalUrlError, local_request
 
 REPO_ROOT = Path(__file__).parent.parent
 
@@ -76,22 +78,21 @@ DEMO_COMMENTS = [
 
 
 def _is_server_running(base_url: str) -> bool:
+    """Return True only if *base_url* is local AND a server responds there."""
     try:
-        urllib.request.urlopen(base_url, timeout=2)
-        return True
-    except Exception:
+        status, _ = local_request(base_url, timeout=2)
+    except (LocalUrlError, OSError):
         return False
+    return status == 200
 
 
 def _api(base_url: str, path: str, method: str = "GET", body: dict | None = None):
-    url = f"{base_url}{path}"
     data = json.dumps(body).encode() if body else None
-    headers = {"Content-Type": "application/json"} if data else {}
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        if resp.status in (200, 201):
-            return json.loads(resp.read())
-        return None
+    headers = {"Content-Type": "application/json"} if data else None
+    status, raw = local_request(base_url + path, method=method, body=data, headers=headers)
+    if status in (200, 201):
+        return json.loads(raw)
+    return None
 
 
 def setup_comments(base_url: str) -> None:

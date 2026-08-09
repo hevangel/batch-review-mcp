@@ -24,6 +24,12 @@ The dispatch rule: if `sys.argv[1]` is a known CLI verb, run the client; otherwi
 
 The repo ships a Claude Code plugin at [`.claude-plugin/`](.claude-plugin/) (CLI-only — no MCP server entry, so agents don't load tool schemas into context). The plugin bundles the [`batch-review`](skills/batch-review/SKILL.md) skill and a [`/batch-review`](commands/batch-review.md) slash command.
 
+## Protocol compatibility
+
+This server speaks the **legacy MCP era** (revision `2025-11-25`, the `initialize` handshake era) — the era every released MCP host uses today. The `2026-07-28` spec (stateless, per-request `_meta`, `server/discover`, new HTTP headers) requires `mcp>=2.0.0`, but `fastmcp` (latest stable 3.x) pins `mcp<2.0`. Dual-era support lands when `fastmcp` 4.x is published to PyPI.
+
+**Do not** hand-roll a custom protocol-compat layer on top of `fastmcp` 3.x — the library owns JSON-RPC dispatch and the transport, so intercepting `_meta`/headers would conflict with its internal handling. The single source of truth for protocol-version status is [`backend/mcp_compat.py`](backend/mcp_compat.py). The upgrade trigger is `PENDING_PROTOCOL_VERSIONS` there; moving `mcp` to `>=2.0.0` flips the server to dual-era.
+
 ## UI Layout Rules
 
 - **CommentBox** (`frontend/src/components/RightPanel/CommentBox.tsx`): the `@filename:L…` reference link MUST always be the **first element** inside the card, above the textarea. Do not move it to the bottom.

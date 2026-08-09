@@ -13,6 +13,7 @@ from typing import Optional
 from fastmcp import FastMCP
 
 from backend.comment_staleness import _IMAGE_SUFFIXES
+from backend.mcp_compat import protocol_info
 from backend.models import WsEvent
 
 mcp = FastMCP(
@@ -566,13 +567,14 @@ def save_comments(
 
 @mcp.tool
 def get_config() -> dict:
-    """Return save/load defaults, the web UI base URL when known, and MCP session metadata if any."""
+    """Return save/load defaults, the web UI base URL when known, MCP session metadata if any, and the active MCP protocol version."""
     state = _state()
     return {
         "output_stem": state.output_stem,
         "output_dir": str(state.output_dir),
         "web_ui_url": state.web_app_url,
         "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
+        "protocol": protocol_info(),
     }
 
 

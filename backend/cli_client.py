@@ -27,10 +27,10 @@ import socket
 import subprocess
 import sys
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from pathlib import Path
+
+from backend.local_url_guard import LocalUrlError, local_request
 
 # Default port the server binds (matches main.py _find_free_port default).
 _DEFAULT_PORT = 9000
@@ -92,13 +92,19 @@ def _probe_url(base_url: str, timeout: float = 1.5) -> bool:
 
     We verify by hitting ``/api/config`` and checking that it returns valid
     JSON — a plain HTTP 200 from any unrelated service (e.g. ASUS Armoury
-    Crate) would pass a bare connectivity check but will fail here because it
-    won't return a JSON object on that path.
+    Crate) would pass a bare connectivity check but will fail here because
+    it won't return a JSON object on that path.
+
+    The request goes through :func:`backend.local_url_guard.local_request`,
+    which refuses any URL that does not resolve to a loopback/private address.
     """
     try:
-        with urllib.request.urlopen(f"{base_url}/api/config", timeout=timeout) as resp:
-            raw = resp.read()
-        # Must be parseable JSON (even an empty object {} is fine).
+        status, raw = local_request(f"{base_url}/api/config", timeout=timeout)
+    except (LocalUrlError, OSError):
+        return False
+    if status != 200:
+        return False
+    try:
         json.loads(raw)
         return True
     except Exception:
@@ -154,7 +160,7 @@ def require_server(repo_root: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
-# HTTP client (stdlib urllib — zero extra dependencies)
+# HTTP client (routed through local_request — zero extra dependencies)
 # ---------------------------------------------------------------------------
 
 def _api(
@@ -167,28 +173,24 @@ def _api(
     """Call a REST endpoint and return the parsed JSON response.
 
     Raises ``SystemExit`` on HTTP errors so the agent gets a clear JSON error.
+    The request is made via :func:`backend.local_url_guard.local_request`,
+    which refuses any server URL that does not resolve to a local address.
     """
     url = f"{base_url}{path}"
     data = json.dumps(body).encode() if body is not None else None
-    headers = {"Content-Type": "application/json"} if data else {}
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
+    headers = {"Content-Type": "application/json"} if data else None
     try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            status = resp.status
-            raw = resp.read()
-    except urllib.error.HTTPError as exc:
-        raw = exc.read().decode("utf-8", errors="replace")
-        print(
-            json.dumps(
-                {"error": f"HTTP {exc.code} {exc.reason}", "detail": raw, "url": url}
-            )
+        status, raw = local_request(
+            url, method=method, body=data, headers=headers, timeout=timeout
         )
+    except LocalUrlError as exc:
+        print(json.dumps({"error": f"Refusing non-local server URL: {exc}"}))
         sys.exit(1)
-    except urllib.error.URLError as exc:
+    except OSError as exc:
         print(
             json.dumps(
                 {
-                    "error": f"Cannot connect to {url}: {exc.reason}",
+                    "error": f"Cannot connect to {url}: {exc}",
                     "hint": "Is the server running? Try: batch-review start --root .",
                 }
             )
