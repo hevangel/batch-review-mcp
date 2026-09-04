@@ -35,7 +35,7 @@ async def main() -> None:
                 print(f"  - {n}", flush=True)
 
             gated = await session.call_tool("get_git_changes", {})
-            if not gated.isError:
+            if not gated.is_error:
                 print("FAILED: get_git_changes should be rejected before init", flush=True)
                 raise SystemExit(1)
             print("OK: gated tool rejected before init", flush=True)
@@ -44,13 +44,13 @@ async def main() -> None:
                 "init_batch_review_session",
                 {"coding_agent": "MCP stdio smoke test", "model_name": ""},
             )
-            if init_res.isError:
+            if init_res.is_error:
                 print(f"FAILED: init_batch_review_session: {init_res}", flush=True)
                 raise SystemExit(1)
             print("OK: init_batch_review_session", flush=True)
 
             after = await session.call_tool("get_git_changes", {})
-            if after.isError:
+            if after.is_error:
                 print(f"FAILED: get_git_changes after init: {after}", flush=True)
                 raise SystemExit(1)
             print("OK: get_git_changes after init", flush=True)

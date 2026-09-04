@@ -26,9 +26,9 @@ The repo ships a Claude Code plugin at [`.claude-plugin/`](.claude-plugin/) (CLI
 
 ## Protocol compatibility
 
-This server speaks the **legacy MCP era** (revision `2025-11-25`, the `initialize` handshake era) — the era every released MCP host uses today. The `2026-07-28` spec (stateless, per-request `_meta`, `server/discover`, new HTTP headers) requires `mcp>=2.0.0`, but `fastmcp` (latest stable 3.x) pins `mcp<2.0`. Dual-era support lands when `fastmcp` 4.x is published to PyPI.
+This server uses FastMCP 4.x with the MCP Python SDK 2.x and supports both protocol eras: the legacy `2025-11-25` `initialize` handshake and the modern `2026-07-28` stateless per-request protocol. The active dependency constraints are `fastmcp>=4.0.2` and `mcp>=2.0.0,<3.0`; the exact resolved versions are tracked in `uv.lock`.
 
-**Do not** hand-roll a custom protocol-compat layer on top of `fastmcp` 3.x — the library owns JSON-RPC dispatch and the transport, so intercepting `_meta`/headers would conflict with its internal handling. The single source of truth for protocol-version status is [`backend/mcp_compat.py`](backend/mcp_compat.py). The upgrade trigger is `PENDING_PROTOCOL_VERSIONS` there; moving `mcp` to `>=2.0.0` flips the server to dual-era.
+**Do not** hand-roll a custom protocol-compatibility layer on top of FastMCP — the library owns JSON-RPC dispatch, transport negotiation, and modern discovery. The single source of truth for the protocol status surfaced to clients is [`backend/mcp_compat.py`](backend/mcp_compat.py). If FastMCP or the MCP SDK changes either protocol era, update that module and the matching README documentation together, then run the stdio MCP smoke test.
 
 ## UI Layout Rules
 

@@ -390,20 +390,20 @@ A typical agent flow is:
 
 ### Protocol compatibility
 
-This server speaks the **legacy MCP era** — protocol revision `2025-11-25` (the `initialize` handshake era). That is the era every released MCP host (Cursor, Claude Desktop, VS Code, Copilot, Codex, Gemini CLI) uses today, so all existing clients connect without changes.
+This server now uses [`fastmcp` 4.0.2](https://pypi.org/project/fastmcp/4.0.2/) with the MCP Python SDK 2.x (`mcp>=2.0.0,<3.0`). FastMCP 4 supports both MCP protocol eras, so existing hosts can continue using the legacy connection-scoped `initialize` handshake while modern clients use the stateless protocol path.
 
-The MCP spec published a major redesign — revision **[`2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)** — that makes the protocol stateless: the `initialize` handshake is replaced by per-request `_meta.io.modelcontextprotocol/*` fields, the streamable HTTP transport adds `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers, and servers must implement `server/discover`. Supporting that era requires `mcp>=2.0.0` at the SDK level.
+The legacy era uses protocol revision `2025-11-25` and `Mcp-Session-Id` session management for streamable HTTP. The MCP spec's modern revision **[`2026-07-28`](https://modelcontextprotocol.io/specification/2026-07-28)** replaces that handshake with per-request `_meta.io.modelcontextprotocol/*` fields, adds `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name` headers to streamable HTTP, and requires `server/discover`. FastMCP and the MCP SDK own this negotiation and transport behavior; Batch Review does not add a competing protocol-compatibility layer.
 
-This server is built on [`fastmcp`](https://gofastmcp.com), whose latest stable PyPI release (3.x) pins `mcp<2.0`. Native dual-era support — one deployment serving both modern and legacy clients, negotiated per connection — is promised by `fastmcp` 4.x, which is not yet published to PyPI. When that release ships, bumping the dependency pin flips the server to dual-era with no other code changes, because all protocol negotiation is delegated to the `fastmcp`/`mcp` libraries.
+FastMCP 4.0.2 also requires the newer Starlette generation, so the project declares `fastapi>=0.133.0` and `uvicorn[standard]>=0.35.0` alongside the FastMCP upgrade. The exact reproducible versions are recorded in [`uv.lock`](uv.lock), currently FastMCP 4.0.2 and MCP 2.1.1.
 
 The active protocol version is surfaced in the `get_config` MCP tool and the `GET /api/config` REST endpoint under a `protocol` key:
 
 ```json
 {
-  "active_protocol_version": "2025-11-25",
-  "supported_protocol_versions": ["2025-11-25"],
-  "pending_protocol_versions": ["2026-07-28"],
-  "modern_era_available": false
+  "active_protocol_version": "2026-07-28",
+  "supported_protocol_versions": ["2025-11-25", "2026-07-28"],
+  "pending_protocol_versions": [],
+  "modern_era_available": true
 }
 ```
 
