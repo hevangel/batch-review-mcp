@@ -63,3 +63,8 @@ The attached narrow-center-panel view exposed that DOCX pages still overflowed h
 - Final validation passed: `npm run build`; `uv build --native-tls`; `uv run --native-tls python scripts/build_mcpb.py --repo-root .`; `uv run --native-tls python scripts/update_server_json_mcpb_sha.py --repo-root . --tag v1.3.0`; and `uv run --native-tls python scripts/verify_release_mcp_registry.py --repo-root . --tag v1.3.0`.
 - Final local MCPB SHA-256: `fe282b10bae352860dca16c44315c19d99a7b36afd7f4c14a37f7cf50740fb0f`; `server.json` now references this checksum. The first `uv build` attempt without `--native-tls` failed with the Windows certificate-store `UnknownIssuer` error; the native-TLS retry passed.
 - Publication status at this checkpoint: branch follow-up commit, PR merge, tag, GitHub Release, PyPI, and MCP Registry publication remain pending.
+
+## Release workflow follow-up
+
+- The first tag-triggered Release run [33997832863](https://github.com/hevangel/batch-review-mcp/actions/runs/33997832863) failed in `Build frontend` before packaging because CI’s npm rejected the optional `@aiden0z/pptx-renderer@1.2.4` peer range (`pdfjs-dist >=5 <7`) against the intentional `react-pdf`/PDF.js `4.8.69` dependency.
+- The release workflow now installs the known-compatible dependency tree with `npm ci --legacy-peer-deps`; this does not change the application bundle because Office PDF fallback rendering is disabled. The existing `v1.3.0` tag remains on the merged feature commit, and the corrected workflow will be dispatched against that tag after this fix is merged.

@@ -59,7 +59,9 @@ jobs:
       - name: Build frontend
         run: |
           cd "$SOURCE_DIR/frontend"
-          npm ci
+          # The renderer’s optional PDF.js peer targets 5+, while react-pdf intentionally pins 4.8.69.
+          # Office PDF fallback is disabled, so retain the compatible split dependency tree.
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Build Python wheel and sdist
