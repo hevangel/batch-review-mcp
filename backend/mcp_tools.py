@@ -7,6 +7,7 @@ All UI-mutating tools also broadcast WebSocket events so the browser updates liv
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -15,6 +16,26 @@ from fastmcp import FastMCP
 from backend.comment_staleness import _IMAGE_SUFFIXES
 from backend.mcp_compat import protocol_info
 from backend.models import WsEvent
+
+_OFFICE_SUFFIXES = frozenset({".docx", ".pptx"})
+
+
+def _document_region_error(
+    region_x1: float | None,
+    region_y1: float | None,
+    region_x2: float | None,
+    region_y2: float | None,
+    label: str,
+) -> str | None:
+    values = (region_x1, region_y1, region_x2, region_y2)
+    if any(value is None for value in values):
+        return f"{label} requires all of region_x1, region_y1, region_x2, region_y2."
+    if any(not math.isfinite(value) or not 0 <= value <= 1 for value in values if value is not None):
+        return f"{label} coordinates must be finite normalized values between 0 and 1."
+    if region_x1 > region_x2 or region_y1 > region_y2:
+        return f"{label} coordinates must have x1 <= x2 and y1 <= y2."
+    return None
+
 
 mcp = FastMCP(
     name="Batch Review",
@@ -238,6 +259,10 @@ async def highlight_in_ui(
     region_y1: float | None = None,
     region_x2: float | None = None,
     region_y2: float | None = None,
+    document_kind: str | None = None,
+    document_page: int | None = None,
+    document_anchor: str | None = None,
+    document_fingerprint: str | None = None,
 ) -> str:
     """Scroll and highlight a location in the browser UI.
 
@@ -252,6 +277,10 @@ async def highlight_in_ui(
     pixel** coordinates (same as ``add_comment`` for images). Do not set ``pdf_page``.
     ``line_start`` / ``line_end`` are ignored.
 
+    **DOCX/PPTX files:** pass ``document_page`` (1-based Word page or PowerPoint slide) and
+    normalized ``region_x1``–``region_y2`` for a rendered document region. Set
+    ``document_kind`` to ``docx`` or ``pptx`` when it is not inferable from the path.
+
     Args:
         path: Relative path to the file within the repo.
         line_start: First line number (1-based) for source files.
@@ -261,14 +290,59 @@ async def highlight_in_ui(
         region_y1: Top edge (PDF: 0–1 on page; image: pixels).
         region_x2: Right edge (PDF: 0–1 on page; image: pixels).
         region_y2: Bottom edge (PDF: 0–1 on page; image: pixels).
+        document_kind: For Office files, ``docx`` or ``pptx``.
+        document_page: For Office files, 1-based Word page or PowerPoint slide.
+        document_anchor: Optional renderer/source identifier for the selected object.
+        document_fingerprint: Optional selected-text/object fingerprint.
 
     Returns:
         Confirmation message, or an error string if arguments are invalid.
     """
     _require_mcp_session()
     state = _state()
+    suffix = Path(path).suffix.lower()
+    office_kind = suffix[1:] if suffix in _OFFICE_SUFFIXES else None
 
-    if Path(path).suffix.lower() == ".pdf" and pdf_page is None:
+    if office_kind:
+        requested_kind = (document_kind or office_kind).lower()
+        if requested_kind != office_kind:
+            return f"Error: {path} is {office_kind.upper()}, not {requested_kind.upper()}."
+        if document_page is None or document_page < 1:
+            return "Error: DOCX/PPTX highlights require document_page >= 1."
+        region_error = _document_region_error(
+            region_x1,
+            region_y1,
+            region_x2,
+            region_y2,
+            "DOCX/PPTX highlight",
+        )
+        if region_error:
+            return f"Error: {region_error}"
+        await state.broadcast(
+            WsEvent(
+                type="highlight",
+                payload={
+                    "path": path,
+                    "line_start": 0,
+                    "line_end": 0,
+                    "region_x1": region_x1,
+                    "region_y1": region_y1,
+                    "region_x2": region_x2,
+                    "region_y2": region_y2,
+                    "document_kind": requested_kind,
+                    "document_page": document_page,
+                    "document_anchor": document_anchor,
+                    "document_fingerprint": document_fingerprint,
+                    "highlighted_text": "",
+                },
+            )
+        )
+        return (
+            f"Highlighted {path} {requested_kind.upper()} page/slide {document_page} "
+            f"rect({region_x1:.4f},{region_y1:.4f},{region_x2:.4f},{region_y2:.4f}) in UI"
+        )
+
+    if suffix == ".pdf" and pdf_page is None:
         return (
             "Error: PDF highlights require pdf_page and region_x1–region_y2 "
             "(normalized 0–1 on that page), not line numbers."
@@ -304,7 +378,6 @@ async def highlight_in_ui(
             f"rect({region_x1:.4f},{region_y1:.4f},{region_x2:.4f},{region_y2:.4f}) in UI"
         )
 
-    suffix = Path(path).suffix.lower()
     if suffix in _IMAGE_SUFFIXES:
         if region_x1 is None or region_y1 is None or region_x2 is None or region_y2 is None:
             return (
@@ -369,6 +442,10 @@ async def jump_to_comment_in_ui(comment_id: str) -> str:
                 "region_x2": comment.region_x2,
                 "region_y2": comment.region_y2,
                 "pdf_page": comment.pdf_page,
+                "document_kind": comment.document_kind,
+                "document_page": comment.document_page,
+                "document_anchor": comment.document_anchor,
+                "document_fingerprint": comment.document_fingerprint,
                 "highlighted_text": comment.highlighted_text,
             },
         )
@@ -383,8 +460,8 @@ async def jump_to_comment_in_ui(comment_id: str) -> str:
 @mcp.tool
 async def add_comment(
     file_path: str,
-    line_start: int,
-    line_end: int,
+    line_start: int = 0,
+    line_end: int = 0,
     text: str = "",
     highlighted_text: str = "",
     region_x1: float | None = None,
@@ -392,8 +469,12 @@ async def add_comment(
     region_x2: float | None = None,
     region_y2: float | None = None,
     pdf_page: int | None = None,
+    document_kind: str | None = None,
+    document_page: int | None = None,
+    document_anchor: str | None = None,
+    document_fingerprint: str | None = None,
 ) -> dict:
-    """Add a review comment for a specific line range in a file.
+    """Add a review comment for a specific line range or document anchor in a file.
 
     Args:
         file_path: Relative path to the file being reviewed.
@@ -406,12 +487,52 @@ async def add_comment(
         region_x2: Right edge of image region in original pixels (optional, for image files).
         region_y2: Bottom edge of image region in original pixels (optional, for image files).
         pdf_page: For PDFs, 1-based page index when using ``region_*`` as normalized 0–1 coords on that page.
+        document_kind: For Office files, ``docx`` or ``pptx``.
+        document_page: For Office files, 1-based Word page or PowerPoint slide.
+        document_anchor: Optional renderer/source identifier for the selected object.
+        document_fingerprint: Optional selected-text/object fingerprint.
 
     Returns:
         The created Comment as a dict.
     """
     _require_mcp_session()
     state = _state()
+    suffix = Path(file_path).suffix.lower()
+    office_kind = suffix[1:] if suffix in _OFFICE_SUFFIXES else None
+    has_document_fields = any(
+        value is not None
+        for value in (document_kind, document_page, document_anchor, document_fingerprint)
+    )
+    normalized_document_kind: str | None = None
+    if office_kind:
+        requested_kind = (document_kind or office_kind).lower()
+        if requested_kind != office_kind:
+            return {"error": f"{file_path} is {office_kind.upper()}, not {requested_kind.upper()}."}
+        normalized_document_kind = requested_kind
+        if document_page is None or document_page < 1:
+            return {"error": "DOCX/PPTX comments require document_page >= 1."}
+        has_region = any(
+            value is not None for value in (region_x1, region_y1, region_x2, region_y2)
+        )
+        if has_region:
+            region_error = _document_region_error(
+                region_x1,
+                region_y1,
+                region_x2,
+                region_y2,
+                "DOCX/PPTX comment region",
+            )
+            if region_error:
+                return {"error": region_error}
+        elif not highlighted_text:
+            return {
+                "error": (
+                    "DOCX/PPTX comments require highlighted_text or all normalized "
+                    "region_x1–region_y2 coordinates."
+                )
+            }
+    elif has_document_fields:
+        return {"error": "document anchor fields may only be used with .docx or .pptx files."}
     comment = state.add_comment(
         file_path=file_path,
         line_start=line_start,
@@ -423,6 +544,10 @@ async def add_comment(
         region_x2=region_x2,
         region_y2=region_y2,
         pdf_page=pdf_page,
+        document_kind=normalized_document_kind,
+        document_page=document_page,
+        document_anchor=document_anchor,
+        document_fingerprint=document_fingerprint,
     )
     await state.broadcast(WsEvent(type="add_comment", payload=comment.model_dump()))
     await _agent_notice(state, f"Agent added comment {comment.reference}")

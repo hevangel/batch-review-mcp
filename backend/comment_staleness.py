@@ -14,6 +14,7 @@ from backend.models import Comment
 _IMAGE_SUFFIXES = frozenset(
     {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", ".ico"},
 )
+_OFFICE_SUFFIXES = frozenset({".docx", ".pptx"})
 
 
 def _normalize_snippet(s: str) -> str:
@@ -48,7 +49,9 @@ def current_comment_text(
         raise FileNotFoundError(f"File not found: {comment.file_path}")
 
     suffix = path.suffix.lower()
-    if suffix in _IMAGE_SUFFIXES or comment.pdf_page is not None or comment.region_x1 is not None:
+    if suffix in _IMAGE_SUFFIXES or suffix in _OFFICE_SUFFIXES or comment.document_kind:
+        raise ValueError("Only text comments can refresh highlighted text.")
+    if comment.pdf_page is not None or comment.region_x1 is not None:
         raise ValueError("Only text comments can refresh highlighted text.")
 
     if comment.line_start < 1 or comment.line_end < comment.line_start:
@@ -76,6 +79,11 @@ def comment_is_outdated(
 
     suffix = path.suffix.lower()
     if suffix in _IMAGE_SUFFIXES:
+        return False
+
+    if suffix in _OFFICE_SUFFIXES or comment.document_kind:
+        # Office packages are rendered client-side; the backend does not parse their
+        # OOXML source, so retain the anchor and let the viewer surface best-effort changes.
         return False
 
     if comment.pdf_page is not None:

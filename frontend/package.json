@@ -12,8 +12,10 @@
     "preview": "node ./node_modules/vite/bin/vite.js preview"
   },
   "dependencies": {
+    "@aiden0z/pptx-renderer": "1.2.4",
     "@monaco-editor/react": "^4.6.0",
     "@tailwindcss/typography": "^0.5.19",
+    "docx-preview": "0.4.0",
     "html2canvas": "^1.4.1",
     "json5": "^2.2.3",
     "katex": "^0.16.45",

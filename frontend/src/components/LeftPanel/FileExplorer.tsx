@@ -43,6 +43,8 @@ const FILE_ICONS: Record<string, string> = {
   bmp: "🖼️",
   svg: "🖼️",
   ico: "🖼️",
+  docx: "📄",
+  pptx: "📊",
 };
 
 function fileIcon(name: string): string {

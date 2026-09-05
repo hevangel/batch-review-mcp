@@ -63,6 +63,12 @@ _IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg", "
 
 _PDF_EXTENSIONS = {".pdf"}
 
+_OFFICE_EXTENSIONS = {".docx", ".pptx"}
+_OFFICE_MIME: dict[str, str] = {
+    ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+}
+
 _IMAGE_MIME: dict[str, str] = {
     ".png": "image/png",
     ".jpg": "image/jpeg",
@@ -100,6 +106,8 @@ def _detect_language(path: str) -> str:
         return "image"
     if suffix in _PDF_EXTENSIONS:
         return "pdf"
+    if suffix in _OFFICE_EXTENSIONS:
+        return suffix[1:]
     return _LANG_MAP.get(suffix, "plaintext")
 
 
@@ -217,13 +225,21 @@ def file_content_model_for_path(path: str) -> FileContentResponse:
         raise FileNotFoundError("File not found")
     if resolved.is_dir():
         raise ValueError("Path is a directory")
+    rel = str(resolved.relative_to(state.repo_root)).replace("\\", "/")
+    language = _detect_language(resolved.name)
+    if language in {"docx", "pptx"}:
+        return FileContentResponse(
+            content="",
+            line_count=0,
+            language=language,
+            path=rel,
+        )
     content = resolved.read_text(encoding="utf-8", errors="replace")
     lines = content.splitlines()
-    rel = str(resolved.relative_to(state.repo_root)).replace("\\", "/")
     return FileContentResponse(
         content=content,
         line_count=len(lines),
-        language=_detect_language(resolved.name),
+        language=language,
         path=rel,
     )
 
@@ -255,6 +271,28 @@ def get_raw_content(path: str):
         raise HTTPException(status_code=400, detail="Path is a directory")
     media_type, _encoding = mimetypes.guess_type(resolved.name)
     return FileResponse(str(resolved), media_type=media_type or "application/octet-stream")
+
+
+@router.get("/office-content")
+def get_office_content(path: str = Query(...)):
+    """Return raw bytes for a local DOCX or PPTX document."""
+    state = get_state()
+    try:
+        resolved = state.resolve_safe_path(path)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not resolved.exists():
+        raise HTTPException(status_code=404, detail="File not found")
+    if resolved.is_dir():
+        raise HTTPException(status_code=400, detail="Path is a directory")
+    suffix = resolved.suffix.lower()
+    if suffix not in _OFFICE_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Not a DOCX or PPTX file")
+    return FileResponse(
+        str(resolved),
+        media_type=_OFFICE_MIME[suffix],
+        headers={"Content-Disposition": "inline"},
+    )
 
 
 @router.get("/pdf-content")

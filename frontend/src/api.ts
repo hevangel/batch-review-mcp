@@ -90,7 +90,15 @@ export function createComment(
   highlighted_text = "",
   region?: { x1: number; y1: number; x2: number; y2: number },
   pdf_page?: number,
-  anchor?: { anchor_kind?: string; html_selector?: string; html_fingerprint?: string },
+  anchor?: {
+    anchor_kind?: string;
+    html_selector?: string;
+    html_fingerprint?: string;
+    document_kind?: "docx" | "pptx";
+    document_page?: number;
+    document_anchor?: string;
+    document_fingerprint?: string;
+  },
 ): Promise<Comment> {
   return json<Comment>("/api/comments", {
     method: "POST",
@@ -102,6 +110,10 @@ export function createComment(
         region_x2: region.x2, region_y2: region.y2,
       } : {}),
       ...(pdf_page != null ? { pdf_page } : {}),
+      ...(anchor?.document_kind ? { document_kind: anchor.document_kind } : {}),
+      ...(anchor?.document_page != null ? { document_page: anchor.document_page } : {}),
+      ...(anchor?.document_anchor ? { document_anchor: anchor.document_anchor } : {}),
+      ...(anchor?.document_fingerprint ? { document_fingerprint: anchor.document_fingerprint } : {}),
       ...(anchor?.anchor_kind ? { anchor_kind: anchor.anchor_kind } : {}),
       ...(anchor?.html_selector ? { html_selector: anchor.html_selector } : {}),
       ...(anchor?.html_fingerprint ? { html_fingerprint: anchor.html_fingerprint } : {}),
@@ -119,6 +131,14 @@ export function imageUrl(path: string, cacheBust?: number): string {
 
 export function pdfUrl(path: string, cacheBust?: number): string {
   let url = `${BASE}/api/pdf-content?path=${encodeURIComponent(path)}`;
+  if (cacheBust !== undefined) {
+    url += `&_cb=${encodeURIComponent(String(cacheBust))}`;
+  }
+  return url;
+}
+
+export function officeUrl(path: string, cacheBust?: number): string {
+  let url = `${BASE}/api/office-content?path=${encodeURIComponent(path)}`;
   if (cacheBust !== undefined) {
     url += `&_cb=${encodeURIComponent(String(cacheBust))}`;
   }
