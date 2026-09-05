@@ -114,6 +114,9 @@ class AppState:
         region_x2: float | None = None,
         region_y2: float | None = None,
         pdf_page: int | None = None,
+        document_kind: str | None = None,
+        document_page: int | None = None,
+        document_anchor: str | None = None,
         anchor_kind: str | None = None,
     ) -> str:
         """Build a compact human-readable reference string for a comment anchor."""
@@ -122,6 +125,22 @@ class AppState:
             rel = str(Path(file_path).relative_to(self.repo_root))
         except ValueError:
             pass
+        if document_kind:
+            label = document_kind.lower()
+            page = f":p{int(document_page)}" if document_page is not None else ""
+            if (
+                region_x1 is not None
+                and region_y1 is not None
+                and region_x2 is not None
+                and region_y2 is not None
+            ):
+                return (
+                    f"@{rel}:{label}{page}:rect("
+                    f"{region_x1:.4f},{region_y1:.4f},{region_x2:.4f},{region_y2:.4f})"
+                )
+            if document_anchor:
+                return f"@{rel}:{label}{page}#{document_anchor}"
+            return f"@{rel}:{label}{page}"
         if (
             anchor_kind == "html_region"
             and region_x1 is not None
@@ -169,6 +188,10 @@ class AppState:
         region_x2: float | None = None,
         region_y2: float | None = None,
         pdf_page: int | None = None,
+        document_kind: str | None = None,
+        document_page: int | None = None,
+        document_anchor: str | None = None,
+        document_fingerprint: str | None = None,
         anchor_kind: str | None = None,
         html_selector: str | None = None,
         html_fingerprint: str | None = None,
@@ -180,6 +203,9 @@ class AppState:
             region_x1=region_x1, region_y1=region_y1,
             region_x2=region_x2, region_y2=region_y2,
             pdf_page=pdf_page,
+            document_kind=document_kind,
+            document_page=document_page,
+            document_anchor=document_anchor,
             anchor_kind=anchor_kind,
         )
         comment = Comment(
@@ -194,6 +220,10 @@ class AppState:
             region_x2=region_x2,
             region_y2=region_y2,
             pdf_page=pdf_page,
+            document_kind=document_kind,
+            document_page=document_page,
+            document_anchor=document_anchor,
+            document_fingerprint=document_fingerprint,
             anchor_kind=anchor_kind,
             html_selector=html_selector,
             html_fingerprint=html_fingerprint,
@@ -254,19 +284,41 @@ class AppState:
         width: int | None = None,
         height: int | None = None,
     ) -> Comment | None:
-        """Save a PNG region screenshot beside review JSON files and attach its filename."""
+        """Save a rendered-region PNG beside review JSON files and attach its filename."""
         comment = self.comments.get(comment_id)
         if comment is None:
             return None
         is_html_region = comment.anchor_kind == "html_region"
         is_pdf_region = comment.pdf_page is not None and comment.region_x1 is not None
-        if not is_html_region and not is_pdf_region:
-            raise ValueError("Region screenshots are only supported for HTML and PDF region comments.")
+        is_office_region = (
+            comment.anchor_kind == "document_region"
+            and comment.document_kind in {"docx", "pptx"}
+            and comment.document_page is not None
+            and comment.document_page > 0
+            and all(
+                value is not None
+                for value in (
+                    comment.region_x1,
+                    comment.region_y1,
+                    comment.region_x2,
+                    comment.region_y2,
+                )
+            )
+        )
+        if not is_html_region and not is_pdf_region and not is_office_region:
+            raise ValueError(
+                "Region screenshots are only supported for HTML, PDF, DOCX, and PPTX region comments."
+            )
         if not image_bytes:
             raise ValueError("Screenshot file is empty.")
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        suffix = "html_region" if is_html_region else f"pdf_p{int(comment.pdf_page or 0)}_region"
+        if is_html_region:
+            suffix = "html_region"
+        elif is_pdf_region:
+            suffix = f"pdf_p{int(comment.pdf_page or 0)}_region"
+        else:
+            suffix = f"{comment.document_kind}_p{int(comment.document_page or 0)}_region"
         filename = f"{self.output_stem}_{comment_id}_{suffix}.png"
         path = self.output_dir / filename
         path.write_bytes(image_bytes)
@@ -381,6 +433,27 @@ class AppState:
                 if c.pdf_page is not None and c.region_x1 is not None:
                     lines.append(
                         f"> **PDF page {c.pdf_page}** (normalized 0–1): "
+                        f"({c.region_x1:.4f},{c.region_y1:.4f})–({c.region_x2:.4f},{c.region_y2:.4f})"
+                    )
+                    if c.region_screenshot_file:
+                        lines.append(f"> Region screenshot: `{c.region_screenshot_file}`")
+                        if c.region_screenshot_width and c.region_screenshot_height:
+                            lines.append(
+                                f"> Size: {c.region_screenshot_width}×{c.region_screenshot_height}px"
+                            )
+                    lines.append(">")
+                elif (
+                    c.anchor_kind == "document_region"
+                    and c.document_kind in {"docx", "pptx"}
+                    and c.document_page is not None
+                    and c.region_x1 is not None
+                    and c.region_y1 is not None
+                    and c.region_x2 is not None
+                    and c.region_y2 is not None
+                ):
+                    document_label = "DOCX page" if c.document_kind == "docx" else "PPTX slide"
+                    lines.append(
+                        f"> **{document_label} {c.document_page}** (normalized 0–1): "
                         f"({c.region_x1:.4f},{c.region_y1:.4f})–({c.region_x2:.4f},{c.region_y2:.4f})"
                     )
                     if c.region_screenshot_file:

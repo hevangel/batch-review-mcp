@@ -34,6 +34,10 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
         region_x2=body.region_x2,
         region_y2=body.region_y2,
         pdf_page=body.pdf_page,
+        document_kind=body.document_kind,
+        document_page=body.document_page,
+        document_anchor=body.document_anchor,
+        document_fingerprint=body.document_fingerprint,
         anchor_kind=body.anchor_kind,
         html_selector=body.html_selector,
         html_fingerprint=body.html_fingerprint,
@@ -122,7 +126,7 @@ async def upload_region_screenshot(
     width: int | None = Form(default=None),
     height: int | None = Form(default=None),
 ) -> Comment:
-    """Attach a PNG screenshot to an HTML or PDF region comment."""
+    """Attach a PNG screenshot to an HTML, PDF, DOCX, or PPTX region comment."""
     state = get_state()
     if file.content_type not in {None, "", "image/png"}:
         raise HTTPException(status_code=400, detail="Region screenshot must be a PNG image.")
@@ -273,7 +277,8 @@ async def ui_highlight(body: dict) -> JSONResponse:
       - ``path`` (required): file path relative to repo root.
       - ``line_start``, ``line_end``: 1-based line range for source files.
       - ``pdf_page``: 1-based page index for PDF region highlights.
-      - ``region_x1``–``region_y2``: PDF (0–1 fractions) or image (pixels).
+      - ``document_kind`` / ``document_page``: ``docx``/``pptx`` and 1-based Word page or PowerPoint slide.
+      - ``region_x1``–``region_y2``: PDF/document normalized fractions or image pixels.
     """
     state = get_state()
     path = body.get("path")
@@ -310,6 +315,10 @@ async def ui_jump_to_comment(body: dict) -> JSONResponse:
                 "region_x2": comment.region_x2,
                 "region_y2": comment.region_y2,
                 "pdf_page": comment.pdf_page,
+                "document_kind": comment.document_kind,
+                "document_page": comment.document_page,
+                "document_anchor": comment.document_anchor,
+                "document_fingerprint": comment.document_fingerprint,
                 "highlighted_text": comment.highlighted_text,
             },
         )

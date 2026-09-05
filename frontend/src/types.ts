@@ -28,6 +28,8 @@ export interface GitCompareParams {
   pr?: string;
 }
 
+export type DocumentKind = "docx" | "pptx";
+
 export interface Comment {
   id: string;
   file_path: string;
@@ -43,6 +45,14 @@ export interface Comment {
   region_y2?: number | null;
   /** 1-based PDF page when ``region_*`` are normalized 0–1 on that page. */
   pdf_page?: number | null;
+  /** Office document kind for page/slide-aware anchors. */
+  document_kind?: DocumentKind | null;
+  /** 1-based Word page or PowerPoint slide. */
+  document_page?: number | null;
+  /** Renderer/source identifier for the selected document object or text block. */
+  document_anchor?: string | null;
+  /** Fingerprint of the selected document text/object. */
+  document_fingerprint?: string | null;
   /** Optional richer anchor metadata for rendered HTML comments. */
   anchor_kind?: string | null;
   html_selector?: string | null;
@@ -73,6 +83,9 @@ export interface DiffResponse {
   head_label?: string | null;
   base_ref?: string | null;
   head_ref?: string | null;
+  binary?: boolean;
+  language?: string;
+  message?: string | null;
 }
 
 // WebSocket event types
@@ -108,6 +121,10 @@ export interface HighlightPayload {
   region_y2?: number | null;
   pdf_page?: number | null;
   highlighted_text?: string | null;
+  document_kind?: DocumentKind | null;
+  document_page?: number | null;
+  document_anchor?: string | null;
+  document_fingerprint?: string | null;
   anchor_kind?: string | null;
   html_selector?: string | null;
   html_fingerprint?: string | null;

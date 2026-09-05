@@ -31,7 +31,7 @@ class Comment(BaseModel):
     file_path: str
     line_start: int
     line_end: int
-    reference: str  # "@file:L10-15" | "@img:rect(px)" | "@doc.pdf:p2" | "@doc.pdf:p2:rect(0-1 floats)"
+    reference: str  # "@file:L10-15" | "@img:rect(px)" | "@doc.pdf:p2" | "@doc.docx:p1:rect(0-1 floats)"
     text: str = ""
     highlighted_text: str = ""
     region_x1: Optional[float] = None
@@ -40,6 +40,14 @@ class Comment(BaseModel):
     region_y2: Optional[float] = None
     #: When set with ``region_*``, anchors a PDF highlight on this 1-based page (``region_*`` are 0–1 fractions).
     pdf_page: Optional[int] = None
+    #: Office document kind (``docx`` or ``pptx``) for page/slide-aware anchors.
+    document_kind: Optional[str] = None
+    #: 1-based Word page or PowerPoint slide for document anchors.
+    document_page: Optional[int] = None
+    #: Renderer/source identifier for the selected document object or text block.
+    document_anchor: Optional[str] = None
+    #: Fingerprint of the selected document text/object used for human-side staleness review.
+    document_fingerprint: Optional[str] = None
     #: Optional richer anchor metadata, currently used by rendered HTML comments.
     anchor_kind: Optional[str] = None
     html_selector: Optional[str] = None
@@ -66,6 +74,10 @@ class CreateCommentRequest(BaseModel):
     region_x2: Optional[float] = None
     region_y2: Optional[float] = None
     pdf_page: Optional[int] = None
+    document_kind: Optional[str] = None
+    document_page: Optional[int] = None
+    document_anchor: Optional[str] = None
+    document_fingerprint: Optional[str] = None
     anchor_kind: Optional[str] = None
     html_selector: Optional[str] = None
     html_fingerprint: Optional[str] = None
@@ -107,3 +119,9 @@ class DiffResponse(BaseModel):
     head_label: Optional[str] = None
     base_ref: Optional[str] = None
     head_ref: Optional[str] = None
+    #: True when the file is a binary document for which no textual diff is emitted.
+    binary: bool = False
+    #: Viewer language/kind, such as ``docx`` or ``pptx``.
+    language: str = "plaintext"
+    #: Human-readable explanation shown instead of a misleading ZIP/XML diff.
+    message: Optional[str] = None

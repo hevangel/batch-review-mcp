@@ -14,9 +14,11 @@ A collaborative code and markdown review tool that bridges human reviewers and A
 | **Markdown rendering** | `.md` files are fully rendered, including [GitHub-style math](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions) with KaTeX: inline `$…$` and GitHub’s dollar-backtick inline form, display `$$…$$` blocks, and fenced `math` code blocks; plus Mermaid fenced diagrams and WaveDrom fenced diagrams (digital timing diagrams, bit-field/register diagrams, and logic/schematic diagrams), each with a toolbar toggle between rendered and source views; highlight any paragraph to add a comment |
 | **HTML previewing** | `.html` and `.htm` files render in a sandboxed center-panel preview with scripts disabled; select rendered elements, text, or a visual region to add source-backed comments, including a saved PNG crop for region comments |
 | **PDF viewing** | `.pdf` files render in the center panel with page-aware text or region comments and reload support |
+| **DOCX/PPTX viewing** | `.docx` and `.pptx` files render locally in the browser with `docx-preview` and `@aiden0z/pptx-renderer`; select document text or a normalized page/slide region to add comments, with Office region selections saved as PNG screenshots beside the review JSON/Markdown output, without LibreOffice or Microsoft Office |
+| **Office document safety** | Office packages are fetched as binary data; git diff mode reports them as binary instead of showing misleading ZIP/XML text |
 | **Syntax highlighting** | All common languages via Monaco Editor (Python, TypeScript, Go, Rust, etc.) |
 | **Inline git diff** | Click changed files to view inline red/green unified diffs for local changes, a previous commit/ref vs `HEAD`, or current checkout vs a GitHub PR head |
-| **Structured comments** | Each comment captures `@filename:L10-15` line references automatically, with richer rendered-view anchors where useful |
+| **Structured comments** | Each comment captures `@filename:L10-15` line references automatically, with richer rendered-view anchors where useful; Office anchors include document kind, page/slide, normalized region, selected text, and a renderer fingerprint |
 | **Outdated recovery** | When a text comment goes stale, refresh its stored highlight from the current file directly from the right panel |
 | **AI collaboration** | MCP server exposes many tools so AI agents can review alongside humans — UI updates live, with on-screen notices for agent-driven comment changes. Also ships a token-efficient **CLI client mode** (`batch-review <verb>`) for coding agents and a **Claude Code plugin** with a review-workflow skill |
 | **Dual output** | Saves review as both **JSON** (machine-readable) and **Markdown** (human-readable) |
@@ -347,6 +349,9 @@ Use **Local** for working tree/index changes vs `HEAD`, **Commit** for a previou
 - **Markdown files** — fully rendered with a toolbar toggle between rendered preview and Markdown source. Relative image embeds render inline, GitHub-compatible math syntax (KaTeX) supports inline `$…$`, dollar-backtick inline, display `$$…$$`, and fenced math blocks ([GitHub docs](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions)), Mermaid fenced blocks can switch between rendered diagrams and raw source via the center-panel toolbar, WaveDrom fenced blocks (` ```wavedrom `) render digital timing diagrams, bit-field/register diagrams (`reg`), and logic/schematic diagrams (`assign`) with the same source/rendered toolbar toggle, links to other repo files open in the app, and links like `other.md#heading` open that file and jump to the heading in the center panel.
 - **HTML files** — rendered in a sandboxed preview with scripts disabled and a toolbar toggle back to source. Hover/click rendered elements or select rendered text to create comments anchored to the source HTML line range plus an element selector/fingerprint; use **Region** mode for visual layout issues, which stores a normalized rendered-page rectangle and a PNG crop saved beside the review JSON. Repo-local CSS and image assets load through a safe raw-content endpoint.
 - **PDF files** — rendered page-by-page in the center panel. Text-selection comments remember the highlighted text on that page even if you click the toolbar Add button, while region comments keep a page rectangle and save a PNG crop beside the review JSON (`Ctrl+Alt+C`).
+- **DOCX files** — rendered locally as best-effort Word pages in the browser and scaled down to fit the available center-panel content width while preserving page proportions; the fit calculation includes rendered page descendants so wide content is included before scaling. Select text for a page-aware document anchor, or switch to **Region** mode to comment on a visual page region; the selected region is captured as a PNG saved beside the review JSON/Markdown output. This uses `docx-preview`; complex Word layout and pagination can differ from Microsoft Word, and document anchors are retained as best-effort fingerprints rather than backend-verified stale text ranges.
+- **PPTX files** — rendered locally as browser-native slides using `@aiden0z/pptx-renderer`. Select text where the browser renderer exposes it, or use **Region** mode for a slide rectangle; selected slide regions are captured as PNG files saved beside the review JSON/Markdown output. Embedded EMF/PDF fallback rendering is disabled to keep the existing PDF.js 4.x dependency unchanged.
+- **Office diffs** — DOCX/PPTX changes are reported as binary packages instead of raw ZIP/XML diffs. Open the current document viewer for visual review; semantic old/new document diffing is not yet provided.
 - **Code files** — Monaco Editor with syntax highlighting. Select lines and click **+ Add Comment** in the toolbar.
 - **Diff view** — Monaco DiffEditor showing the selected compare sides inline (red = removed, green = added). Switch back to normal view via the Git tab or by clicking the file in the Files tab.
 
@@ -362,7 +367,7 @@ The **💾 Save Review** button saves all comments to:
 - `{output-dir}/{output}.json` — machine-readable JSON array
 - `{output-dir}/{output}.md` — human-readable Markdown report grouped by file
 
-HTML region screenshots are saved as PNG files in the same output directory and referenced by filename from the matching JSON comment.
+Rendered HTML, PDF, DOCX, and PPTX region screenshots are saved as PNG files in the same output directory and referenced by filename from the matching JSON comment (and copied alongside custom output paths).
 
 When the server starts, if that JSON file already exists it is **loaded into the session** so you can continue a saved review (invalid files are skipped with a log warning). Loading a saved review from the right-panel folder button also updates the active review stem shown in the footer so subsequent saves target that loaded review name by default.
 
@@ -441,7 +446,7 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `init_batch_review_session(coding_agent, model_name?, client_version?)` | **Call first** once per MCP connection; registers the host and model. Other tools return an error until this succeeds (except `get_config`, `get_review_web_url`, and resource `batch-review://server/urls`). |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
-| `add_comment(...)` | Add a review comment; shows a short notice in the UI |
+| `add_comment(...)` | Add a review comment; source comments use line ranges, while DOCX/PPTX comments can use `document_kind`, `document_page`, normalized regions, `document_anchor`, and `document_fingerprint`; shows a short notice in the UI |
 | `update_comment(comment_id, text)` | Edit comment body; UI notice |
 | `delete_comment(id)` | Delete a comment; UI notice |
 | `clear_all_comments()` | Remove every in-memory comment at once; UI notice |
@@ -454,7 +459,7 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `get_file_content(path)` | Read file content as structured data (`content`, `line_count`, `language`, `path`) when diff context alone is not enough |
 | `list_directory(path)` | Minimal repo navigation helper for hosts that want the review file tree |
 | `open_file_in_ui(path, mode)` | Open a file in the center panel (`view` or `diff`); same path+mode refreshes the view |
-| `highlight_in_ui(path, line_start?, line_end?, pdf_page?, region_x1?, …)` | **Source files:** ``line_start``–``line_end`` (1-based). **PDFs:** ``pdf_page`` + ``region_*`` normalized 0–1 on that page. **Images:** ``region_*`` in original pixels (omit ``pdf_page``) |
+| `highlight_in_ui(path, line_start?, line_end?, pdf_page?, region_x1?, …)` | **Source files:** ``line_start``–``line_end`` (1-based). **PDFs:** ``pdf_page`` + ``region_*`` normalized 0–1 on that page. **Images:** ``region_*`` in original pixels. **DOCX/PPTX:** ``document_page`` + normalized ``region_*`` (and optional `document_kind`/anchor fields) |
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
 | `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
 | `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |

@@ -4,6 +4,7 @@ from __future__ import annotations
 import difflib
 import logging
 import re
+from pathlib import Path
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, HTTPException, Query
@@ -13,6 +14,7 @@ from backend.state import get_state
 
 router = APIRouter(prefix="/api/git")
 logger = logging.getLogger(__name__)
+_BINARY_DOCUMENT_EXTENSIONS = frozenset({".docx", ".pptx"})
 
 
 def _get_repo():
@@ -234,6 +236,36 @@ def git_diff(
     repo = _get_repo()
     rel_path = str(safe_path.relative_to(state.repo_root)).replace("\\", "/")
     old_rel_path = (old_path or rel_path).replace("\\", "/")
+
+    document_suffix = Path(rel_path).suffix.lower()
+    if document_suffix in _BINARY_DOCUMENT_EXTENSIONS:
+        language = document_suffix[1:]
+        if mode != "local":
+            binary_base_ref, binary_head_ref, binary_base_label, binary_head_label = _compare_refs(
+                repo, mode, base, head, pr
+            )
+        else:
+            binary_base_ref = "HEAD"
+            binary_head_ref = "working tree"
+            binary_base_label = "Original (HEAD)"
+            binary_head_label = "Modified (working tree)"
+        return DiffResponse(
+            path=rel_path,
+            old_path=old_rel_path if old_rel_path != rel_path else None,
+            original="",
+            modified="",
+            diff="",
+            base_label=binary_base_label,
+            head_label=binary_head_label,
+            base_ref=binary_base_ref,
+            head_ref=binary_head_ref,
+            binary=True,
+            language=language,
+            message=(
+                f"{language.upper()} files are binary Office packages. "
+                "Batch Review opens them in the document viewer instead of showing a raw ZIP/XML diff."
+            ),
+        )
 
     if mode != "local":
         base_ref, head_ref, base_label, head_label = _compare_refs(repo, mode, base, head, pr)

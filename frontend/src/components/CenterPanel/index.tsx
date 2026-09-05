@@ -8,6 +8,7 @@ import CodeViewer from "./CodeViewer";
 import DiffViewer from "./DiffViewer";
 import ImageViewer from "./ImageViewer";
 import HtmlViewer from "./HtmlViewer";
+import OfficeViewer, { OfficeDiffNotice } from "./OfficeViewer";
 const PdfViewer = lazy(() => import("./PdfViewer"));
 
 export default function CenterPanel() {
@@ -45,6 +46,9 @@ export default function CenterPanel() {
       setLoading(false);
     } else if (extToLang(ext) === "pdf") {
       setFileData({ content: "", line_count: 0, language: "pdf", path: openFilePath });
+      setLoading(false);
+    } else if (extToLang(ext) === "docx" || extToLang(ext) === "pptx") {
+      setFileData({ content: "", line_count: 0, language: extToLang(ext), path: openFilePath });
       setLoading(false);
     } else {
       getFileContent(openFilePath)
@@ -119,6 +123,9 @@ export default function CenterPanel() {
   if (openMode === "diff" && diffData) {
     const ext = openFilePath.split(".").pop()?.toLowerCase() ?? "";
     const lang = fileData?.language ?? extToLang(ext);
+    if (diffData.binary) {
+      return <OfficeDiffNotice filePath={openFilePath} diff={diffData} />;
+    }
     return <DiffViewer diff={diffData} language={lang} filePath={openFilePath} />;
   }
 
@@ -138,6 +145,15 @@ export default function CenterPanel() {
         >
           <PdfViewer filePath={openFilePath} cacheBust={centerReloadEpoch} />
         </Suspense>
+      );
+    }
+    if (fileData.language === "docx" || fileData.language === "pptx") {
+      return (
+        <OfficeViewer
+          filePath={openFilePath}
+          documentKind={fileData.language}
+          cacheBust={centerReloadEpoch}
+        />
       );
     }
     if (fileData.language === "markdown") {
@@ -188,6 +204,8 @@ function extToLang(ext: string): string {
     svg: "image",
     ico: "image",
     pdf: "pdf",
+    docx: "docx",
+    pptx: "pptx",
   };
   return map[ext] ?? "plaintext";
 }
