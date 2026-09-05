@@ -54,3 +54,12 @@ Untracked `docs/example.pptx`, `docs/ravg.docx`, and `.mimosa/` automation artif
 ## Fit-to-width follow-up
 
 The attached narrow-center-panel view exposed that DOCX pages still overflowed horizontally. `frontend/src/components/CenterPanel/OfficeViewer.tsx` now renders DOCX into a dedicated intrinsic-size surface and scales that surface down to the available center-panel content width with a `ResizeObserver`, preserving page proportions and normalized comment coordinates. PPTX continues to use its renderer-managed `contain` mode. The README DOCX walkthrough documents the responsive behavior.
+
+## Final release bookkeeping
+
+- Final continuation capture date: 2026-09-04. Exact Kiro session start time and duration are not exposed by the current harness.
+- Model-call evidence: the current Kiro session does not expose exact per-model token totals or a complete model-call counter. The existing record documents one delegated context-gatherer invocation from the implementation work; no additional delegated model call was used during this release continuation.
+- Final DOCX fit correction: intrinsic measurement now includes page boxes and rendered descendants, including offset/scroll dimensions, before the responsive scale-to-width calculation. The generated `frontend/tsconfig.tsbuildinfo` file was restored and remains unstaged.
+- Final validation passed: `npm run build`; `uv build --native-tls`; `uv run --native-tls python scripts/build_mcpb.py --repo-root .`; `uv run --native-tls python scripts/update_server_json_mcpb_sha.py --repo-root . --tag v1.3.0`; and `uv run --native-tls python scripts/verify_release_mcp_registry.py --repo-root . --tag v1.3.0`.
+- Final local MCPB SHA-256: `fe282b10bae352860dca16c44315c19d99a7b36afd7f4c14a37f7cf50740fb0f`; `server.json` now references this checksum. The first `uv build` attempt without `--native-tls` failed with the Windows certificate-store `UnknownIssuer` error; the native-TLS retry passed.
+- Publication status at this checkpoint: branch follow-up commit, PR merge, tag, GitHub Release, PyPI, and MCP Registry publication remain pending.

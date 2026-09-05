@@ -262,9 +262,24 @@ function measureDocxSurface(surface: HTMLElement, pages: readonly HTMLElement[])
   return pages.reduce(
     (size, page) => {
       const pageRect = page.getBoundingClientRect();
+      const pageLeft = pageRect.left - surfaceRect.left;
+      const pageTop = pageRect.top - surfaceRect.top;
+      const pageWidth = Math.max(pageRect.width, page.offsetWidth, page.scrollWidth);
+      const pageHeight = Math.max(pageRect.height, page.offsetHeight, page.scrollHeight);
+      let contentRight = pageLeft + pageWidth;
+      let contentBottom = pageTop + pageHeight;
+      for (const element of [page, ...Array.from(page.querySelectorAll<HTMLElement>("*"))]) {
+        const elementRect = element.getBoundingClientRect();
+        const elementLeft = elementRect.left - surfaceRect.left;
+        const elementTop = elementRect.top - surfaceRect.top;
+        const elementWidth = Math.max(elementRect.width, element.offsetWidth, element.scrollWidth);
+        const elementHeight = Math.max(elementRect.height, element.offsetHeight, element.scrollHeight);
+        contentRight = Math.max(contentRight, elementLeft + elementWidth);
+        contentBottom = Math.max(contentBottom, elementTop + elementHeight);
+      }
       return {
-        width: Math.max(size.width, pageRect.right - surfaceRect.left),
-        height: Math.max(size.height, pageRect.bottom - surfaceRect.top),
+        width: Math.max(size.width, contentRight),
+        height: Math.max(size.height, contentBottom),
       };
     },
     {
@@ -850,7 +865,7 @@ export default function OfficeViewer({ filePath, documentKind, cacheBust }: Offi
       )}
       <div
         ref={scrollContainerRef}
-        className="relative flex-1 overflow-auto bg-gray-900 p-4"
+        className="office-document-scroll relative flex-1 overflow-auto bg-gray-900 p-4"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -878,9 +893,13 @@ export default function OfficeViewer({ filePath, documentKind, cacheBust }: Offi
         />
       </div>
       <style>{`
+        .office-document-scroll {
+          scrollbar-gutter: stable;
+        }
         .office-docx-frame {
           position: relative;
           flex: 0 0 auto;
+          overflow: hidden;
         }
         .office-docx-surface {
           position: absolute;
