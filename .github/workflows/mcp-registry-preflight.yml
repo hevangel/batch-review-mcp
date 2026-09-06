@@ -31,11 +31,13 @@ jobs:
       - name: Build frontend
         run: |
           cd frontend
-          npm ci
+          # The renderer's optional PDF.js peer targets 5+, while react-pdf intentionally pins 4.8.69.
+          # Office PDF fallback is disabled, so retain the compatible split dependency tree.
+          npm ci --legacy-peer-deps
           npm run build
 
       - name: Pack MCP bundle (Linux)
-        run: uv run python scripts/build_mcpb.py
+        run: uv run --no-project python scripts/build_mcpb.py --repo-root .
 
       - name: Print SHA-256 for server.json
         run: |

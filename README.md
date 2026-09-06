@@ -293,6 +293,8 @@ This project includes a root-level [`server.json`](./server.json) for the [Model
 
 The separate **[MCP registry preflight (Linux MCPB hash)](.github/workflows/mcp-registry-preflight.yml)** workflow is now optional. It is still useful when you want to inspect the Linux-built bundle bytes before tagging or debug a registry mismatch, but normal releases no longer require copying a SHA into `server.json` by hand.
 
+Both CI workflows install frontend dependencies with `npm ci --legacy-peer-deps`. The frontend intentionally pins `react-pdf`/`pdfjs-dist` to 4.8.69 while the optional PDF.js peer declared by `@aiden0z/pptx-renderer` targets `>=5 <7`; plain `npm ci` fails peer resolution under the Node 22/npm 10 environment used by GitHub Actions. The Office PDF fallback is disabled, so accepting the locked dependency tree does not change the application bundle.
+
 If a tag already exists but the Release workflow itself needed a workflow-only fix, you can
 rerun it manually from **Actions** via `workflow_dispatch` by providing `release_tag`
 (for example `v0.4.3`). That manual path checks out the tag you name, overlays the current
