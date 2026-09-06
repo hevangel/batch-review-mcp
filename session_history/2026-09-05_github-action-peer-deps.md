@@ -1,13 +1,13 @@
 # Session: Debug GitHub Actions frontend dependency failure
 
 ## Session metadata
-- Capture timestamp: 2026-09-05T21:04:37.1177665-07:00
+- Capture timestamp: 2026-09-05T21:05:22.8572987-07:00
 
 ## Commit and push continuation
 - The user requested that the validated workflow/documentation fix be committed and pushed.
-- Current branch: `main`, tracking `origin/main`.
-- The intended commit includes only `.github/workflows/mcp-registry-preflight.yml`, `README.md`, and this session-history record; existing untracked local automation and Office fixture files remain excluded.
-- Commit and push validation are pending at this capture point.
+- The implementation commit is `2fb2f9fb2b9ae1c2319b620e4971768ab78108b1` (`ci: fix preflight frontend dependency install`). It includes only `.github/workflows/mcp-registry-preflight.yml`, `README.md`, and this session-history record.
+- `git push origin main` succeeded, and `origin/main` was verified to resolve to `2fb2f9fb2b9ae1c2319b620e4971768ab78108b1`.
+- The final bookkeeping update is being committed separately in this session-history record. Existing untracked `.mimosa/`, `docs/example.docx`, and `docs/example.pptx` files remain excluded.
 - Conversation UUID: Not exposed by the current Kiro API; no UUID-bearing workspace record was discoverable for this session.
 - Duration: Exact session start and duration are not exposed by Kiro.
 
