@@ -24,10 +24,17 @@ Found that rendered equations and graphics can lack HTML-specific offset dimensi
 ### User
 Yes, it works. Commit and push. Add .mimosa to gitignore.
 
+### User
+Add the example DOCX and PPTX files to the repository.
+
+### Agent
+Added the two existing examples to `docs/` for document viewer review.
+
 ## Files changed
 - `frontend/src/components/CenterPanel/OfficeViewer.tsx` — measure HTML and non-HTML document elements safely.
 - `README.md` — describe fit calculation for equations and vector graphics.
 - `.gitignore` — ignore local Mimosa records.
+- `docs/example.docx` and `docs/example.pptx` — example Office documents.
 - `session_history/2026-10-29_fix-docx-rendering.md` — record this session.
 
 ## Reproduction steps
