@@ -268,12 +268,16 @@ function measureDocxSurface(surface: HTMLElement, pages: readonly HTMLElement[])
       const pageHeight = Math.max(pageRect.height, page.offsetHeight, page.scrollHeight);
       let contentRight = pageLeft + pageWidth;
       let contentBottom = pageTop + pageHeight;
-      for (const element of [page, ...Array.from(page.querySelectorAll<HTMLElement>("*"))]) {
+      for (const element of [page, ...Array.from(page.querySelectorAll("*"))]) {
         const elementRect = element.getBoundingClientRect();
         const elementLeft = elementRect.left - surfaceRect.left;
         const elementTop = elementRect.top - surfaceRect.top;
-        const elementWidth = Math.max(elementRect.width, element.offsetWidth, element.scrollWidth);
-        const elementHeight = Math.max(elementRect.height, element.offsetHeight, element.scrollHeight);
+        const elementWidth = Math.max(
+          elementRect.width, element instanceof HTMLElement ? element.offsetWidth : 0, element.scrollWidth,
+        );
+        const elementHeight = Math.max(
+          elementRect.height, element instanceof HTMLElement ? element.offsetHeight : 0, element.scrollHeight,
+        );
         contentRight = Math.max(contentRight, elementLeft + elementWidth);
         contentBottom = Math.max(contentBottom, elementTop + elementHeight);
       }

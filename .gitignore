@@ -44,6 +44,9 @@ review_comments.md
 # ZCode agent working files (local plans, session scratch)
 .zcode/
 
+# Mimosa local review records
+.mimosa/
+
 # Claude Code local overrides (do not commit)
 .claude/
 *.suo
