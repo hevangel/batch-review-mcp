@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import json
 import math
+import uuid
 from pathlib import Path
 from typing import Optional
 
-from fastmcp import FastMCP
+from fastmcp import Context, FastMCP
 
 from backend.comment_staleness import _IMAGE_SUFFIXES
 from backend.mcp_compat import protocol_info
@@ -42,8 +43,12 @@ mcp = FastMCP(
     instructions=(
         "**Before any other Batch Review MCP tool** (except ``get_config``, ``get_review_web_url``, "
         "or reading resource ``batch-review://server/urls``), call ``init_batch_review_session`` once "
-        "per connection with ``coding_agent`` (e.g. Cursor, Claude Desktop) and optional ``model_name``. "
-        "The server rejects other tools until init succeeds. "
+        "per connection with ``coding_agent`` (e.g. Cursor, Claude Desktop), optional ``model_name``, "
+        "and optional ``userid`` (defaults to the server OS account). Save the returned application "
+        "``session_id`` and pass it to later tools when using modern stateless MCP; legacy connection-"
+        "scoped clients may omit it. Each application session has isolated metadata and current userid. "
+        "Use ``get_current_userid`` / ``set_current_userid`` to inspect or change attribution for future comments. "
+        "The server rejects other tools until that application session initializes. "
         "Then use git review context via get_git_changes() and get_git_diff(path), and structured "
         "file reads only when extra context is needed. Manage review comments "
         "(add, update, delete, clear all, delete outdated, list, recompute stale, load saved reviews, save), drive the shared browser UI "
@@ -64,12 +69,20 @@ def _state():
     return get_state()
 
 
-def _require_mcp_session() -> None:
-    if not _state().mcp_session_initialized:
+def _require_mcp_session(ctx: Context, session_id: str = "") -> dict[str, str]:
+    state = _state()
+    explicit_session_id = (session_id or "").strip()
+    info = (
+        state.get_mcp_session(explicit_session_id)
+        if explicit_session_id
+        else state.get_mcp_session_for_context(ctx.session_id)
+    )
+    if info is None:
         raise RuntimeError(
-            "MCP session not initialized. Call init_batch_review_session(coding_agent=..., "
-            "model_name=... (optional), client_version=... (optional)) once before other Batch Review tools."
+            "MCP session not initialized for this request. Call init_batch_review_session first, "
+            "then pass its returned session_id to later tools when using modern stateless MCP."
         )
+    return info
 
 
 async def _agent_notice(state, message: str) -> None:
@@ -92,7 +105,7 @@ def _review_connection_urls() -> dict:
     return {
         "web_ui": base,
         "websocket": ws,
-        "mcp_http": f"{base}/mcp",
+        "mcp_http": f"{base}/mcp/",
     }
 
 
@@ -103,35 +116,74 @@ def _review_connection_urls() -> dict:
 @mcp.tool
 async def init_batch_review_session(
     coding_agent: str,
+    ctx: Context,
     model_name: str = "",
     client_version: str = "",
+    userid: str = "",
 ) -> dict:
-    """Register the host and model using this MCP server for this process.
+    """Register this MCP connection and its current review userid.
 
-    Call **once at the start of a session** before ``get_git_changes``, ``add_comment``,
+    Call **once at the start of a connection** before ``get_git_changes``, ``add_comment``,
     ``open_file_in_ui``, or any other Batch Review tool (except ``get_config``,
-    ``get_review_web_url``, or resource ``batch-review://server/urls``).
+    ``get_review_web_url``, or resource ``batch-review://server/urls``). The returned
+    application ``session_id`` is stable across modern stateless requests; pass it to
+    subsequent tools. Legacy connection-scoped clients may omit it.
 
     Args:
         coding_agent: Client or editor name (e.g. ``Cursor``, ``Claude Desktop``, ``VS Code``).
         model_name: Active model id if known; empty string if unknown.
         client_version: Optional host version string.
+        userid: Attribution for new comments; defaults to the server OS account when blank.
 
     Returns:
-        Dict with ``ok`` true and the stored ``coding_agent``, ``model_name``, ``client_version``,
+        Dict with ``ok`` true, ``session_id``, ``userid``, and stored client metadata,
         or ``{"error": "..."}`` if ``coding_agent`` is missing.
     """
     state = _state()
     try:
         info = state.register_mcp_session(
+            session_id=str(uuid.uuid4()),
+            context_session_id=ctx.session_id,
             coding_agent=coding_agent,
             model_name=model_name,
             client_version=client_version,
+            userid=userid,
         )
     except ValueError as exc:
         return {"error": str(exc)}
-    await state.broadcast(WsEvent(type="mcp_session", payload=dict(info)))
+    await state.broadcast(
+        WsEvent(type="mcp_session", payload=state.public_mcp_session(info))
+    )
     return {"ok": True, **info}
+
+
+@mcp.tool
+async def get_current_userid(ctx: Context, session_id: str = "") -> dict:
+    """Return the userid used for new comments in this application session."""
+    info = _require_mcp_session(ctx, session_id)
+    return {"userid": info["userid"]}
+
+
+@mcp.tool
+async def set_current_userid(userid: str, ctx: Context, session_id: str = "") -> dict:
+    """Change the userid for future comments in this application session only."""
+    state = _state()
+    try:
+        current = _require_mcp_session(ctx, session_id)
+        info = state.set_mcp_session_userid(current["session_id"], userid)
+    except RuntimeError:
+        raise
+    except KeyError as exc:
+        raise RuntimeError(
+            "MCP session not initialized. Call init_batch_review_session first."
+        ) from exc
+    except ValueError as exc:
+        return {"error": str(exc)}
+    await state.broadcast(
+        WsEvent(type="mcp_session", payload=state.public_mcp_session(info))
+    )
+    await _agent_notice(state, "Agent review identity changed")
+    return {"ok": True, "userid": info["userid"]}
 
 
 # ---------------------------------------------------------------------------
@@ -139,7 +191,7 @@ async def init_batch_review_session(
 # ---------------------------------------------------------------------------
 
 @mcp.tool
-def list_directory(path: str = ".") -> list[dict]:
+def list_directory(ctx: Context, path: str = ".", session_id: str = "") -> list[dict]:
     """List files and directories in the repository.
 
     Args:
@@ -148,7 +200,7 @@ def list_directory(path: str = ".") -> list[dict]:
     Returns:
         List of FileInfo dicts with keys: name, path, is_dir, language, children.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     from backend.api.files import _build_tree
     state = _state()
     try:
@@ -162,7 +214,7 @@ def list_directory(path: str = ".") -> list[dict]:
 
 
 @mcp.tool
-def get_file_content(path: str) -> dict:
+def get_file_content(path: str, ctx: Context, session_id: str = "") -> dict:
     """Read a file and return the same structure as the REST API / UI viewer.
 
     Args:
@@ -171,7 +223,7 @@ def get_file_content(path: str) -> dict:
     Returns:
         Dict with keys: content, line_count, language, path. On error, {"error": "..."}.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     from backend.api.files import file_content_model_for_path
 
     try:
@@ -190,14 +242,14 @@ def get_file_content(path: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool
-def get_git_changes() -> list[dict]:
+def get_git_changes(ctx: Context, session_id: str = "") -> list[dict]:
     """Return a list of files changed relative to the last commit (HEAD).
 
     Returns:
         List of GitChange dicts with keys: path, status.
         Status values: M=modified, A=added, D=deleted, R=renamed, ?=untracked.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     from backend.api.git_ops import git_changes
     # Call with explicit locals; FastAPI Query defaults are not resolved when
     # the route handler is invoked as a plain function from MCP.
@@ -206,7 +258,7 @@ def get_git_changes() -> list[dict]:
 
 
 @mcp.tool
-def get_git_diff(path: str) -> dict:
+def get_git_diff(path: str, ctx: Context, session_id: str = "") -> dict:
     """Return the diff for a specific file.
 
     Args:
@@ -215,7 +267,7 @@ def get_git_diff(path: str) -> dict:
     Returns:
         Dict with keys: path, original (HEAD content), modified (working tree), diff (unified).
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     from backend.api.git_ops import git_diff
     # Call with explicit locals; FastAPI Query defaults are not resolved when
     # the route handler is invoked as a plain function from MCP.
@@ -230,7 +282,12 @@ def get_git_diff(path: str) -> dict:
 # ---------------------------------------------------------------------------
 
 @mcp.tool
-async def open_file_in_ui(path: str, mode: str = "view") -> str:
+async def open_file_in_ui(
+    path: str,
+    ctx: Context,
+    mode: str = "view",
+    session_id: str = "",
+) -> str:
     """Open a file in the browser UI center panel.
 
     If that file is already open with the same mode, the center view reloads from
@@ -243,7 +300,7 @@ async def open_file_in_ui(path: str, mode: str = "view") -> str:
     Returns:
         Confirmation message.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     await state.broadcast(WsEvent(type="open_file", payload={"path": path, "mode": mode}))
     return f"Opened {path} in UI (mode={mode})"
@@ -252,6 +309,7 @@ async def open_file_in_ui(path: str, mode: str = "view") -> str:
 @mcp.tool
 async def highlight_in_ui(
     path: str,
+    ctx: Context,
     line_start: int = 0,
     line_end: int = 0,
     pdf_page: int | None = None,
@@ -263,6 +321,7 @@ async def highlight_in_ui(
     document_page: int | None = None,
     document_anchor: str | None = None,
     document_fingerprint: str | None = None,
+    session_id: str = "",
 ) -> str:
     """Scroll and highlight a location in the browser UI.
 
@@ -298,7 +357,7 @@ async def highlight_in_ui(
     Returns:
         Confirmation message, or an error string if arguments are invalid.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     suffix = Path(path).suffix.lower()
     office_kind = suffix[1:] if suffix in _OFFICE_SUFFIXES else None
@@ -419,13 +478,17 @@ async def highlight_in_ui(
 
 
 @mcp.tool
-async def jump_to_comment_in_ui(comment_id: str) -> str:
+async def jump_to_comment_in_ui(
+    comment_id: str,
+    ctx: Context,
+    session_id: str = "",
+) -> str:
     """Open the file and highlight the line range for a comment (like clicking @file:L…).
 
     Args:
         comment_id: UUID of an existing comment from list_comments.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     comment = state.comments.get(comment_id)
     if comment is None:
@@ -460,6 +523,7 @@ async def jump_to_comment_in_ui(comment_id: str) -> str:
 @mcp.tool
 async def add_comment(
     file_path: str,
+    ctx: Context,
     line_start: int = 0,
     line_end: int = 0,
     text: str = "",
@@ -473,8 +537,13 @@ async def add_comment(
     document_page: int | None = None,
     document_anchor: str | None = None,
     document_fingerprint: str | None = None,
+    session_id: str = "",
 ) -> dict:
-    """Add a review comment for a specific line range or document anchor in a file.
+    """Add a review comment attributed to this MCP connection's current userid.
+
+    The userid is captured when the comment is created; changing the session userid later
+    affects only future comments. Source comments use a line range and document comments use
+    the anchor fields below.
 
     Args:
         file_path: Relative path to the file being reviewed.
@@ -495,7 +564,7 @@ async def add_comment(
     Returns:
         The created Comment as a dict.
     """
-    _require_mcp_session()
+    session_info = _require_mcp_session(ctx, session_id)
     state = _state()
     suffix = Path(file_path).suffix.lower()
     office_kind = suffix[1:] if suffix in _OFFICE_SUFFIXES else None
@@ -539,6 +608,7 @@ async def add_comment(
         line_end=line_end,
         text=text,
         highlighted_text=highlighted_text,
+        userid=session_info["userid"],
         region_x1=region_x1,
         region_y1=region_y1,
         region_x2=region_x2,
@@ -555,19 +625,19 @@ async def add_comment(
 
 
 @mcp.tool
-def list_comments() -> list[dict]:
+def list_comments(ctx: Context, session_id: str = "") -> list[dict]:
     """List all current review comments.
 
     Returns:
         List of Comment dicts.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     return [c.model_dump() for c in state.comments.values()]
 
 
 @mcp.tool
-async def recompute_comment_stale() -> list[dict]:
+async def recompute_comment_stale(ctx: Context, session_id: str = "") -> list[dict]:
     """Re-scan repository files and refresh each comment's ``outdated`` flag.
 
     Compares on-disk text at each comment's line range to the stored ``highlighted_text``.
@@ -576,7 +646,7 @@ async def recompute_comment_stale() -> list[dict]:
     Returns:
         List of Comment dicts (including updated ``outdated`` booleans).
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     state.recompute_all_comment_outdated()
     comments = list(state.comments.values())
@@ -591,7 +661,11 @@ async def recompute_comment_stale() -> list[dict]:
 
 
 @mcp.tool
-async def delete_comment(comment_id: str) -> str:
+async def delete_comment(
+    comment_id: str,
+    ctx: Context,
+    session_id: str = "",
+) -> str:
     """Delete a review comment by its ID.
 
     Args:
@@ -600,7 +674,7 @@ async def delete_comment(comment_id: str) -> str:
     Returns:
         Confirmation or error message.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     if state.delete_comment(comment_id):
         await state.broadcast(WsEvent(type="delete_comment", payload={"id": comment_id}))
@@ -610,7 +684,7 @@ async def delete_comment(comment_id: str) -> str:
 
 
 @mcp.tool
-async def clear_all_comments() -> str:
+async def clear_all_comments(ctx: Context, session_id: str = "") -> str:
     """Remove every in-memory review comment at once (same as the UI Clear all button).
 
     This clears the live session only; it does not delete JSON/Markdown files on disk
@@ -619,7 +693,7 @@ async def clear_all_comments() -> str:
     Returns:
         A short confirmation including how many comments were removed.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     n = state.clear_all_comments()
     await state.broadcast(WsEvent(type="refresh_comments", payload=[]))
@@ -628,7 +702,7 @@ async def clear_all_comments() -> str:
 
 
 @mcp.tool
-async def delete_outdated_comments() -> str:
+async def delete_outdated_comments(ctx: Context, session_id: str = "") -> str:
     """Remove every comment marked ``outdated`` (same as the UI Delete outdated button).
 
     Run ``recompute_comment_stale()`` first so ``outdated`` flags are up to date.
@@ -636,7 +710,7 @@ async def delete_outdated_comments() -> str:
     Returns:
         Short confirmation with how many comments were removed.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     n = state.delete_outdated_comments()
     remaining = list(state.comments.values())
@@ -651,7 +725,12 @@ async def delete_outdated_comments() -> str:
 
 
 @mcp.tool
-async def update_comment(comment_id: str, text: str) -> dict:
+async def update_comment(
+    comment_id: str,
+    text: str,
+    ctx: Context,
+    session_id: str = "",
+) -> dict:
     """Change the body text of an existing comment (same as editing in the UI).
 
     Args:
@@ -661,7 +740,7 @@ async def update_comment(comment_id: str, text: str) -> dict:
     Returns:
         Updated Comment dict, or {\"error\": \"...\"} if not found.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     updated = state.update_comment_text(comment_id, text)
     if updated is None:
@@ -673,8 +752,10 @@ async def update_comment(comment_id: str, text: str) -> dict:
 
 @mcp.tool
 def save_comments(
+    ctx: Context,
     output_stem: Optional[str] = None,
     output_dir: Optional[str] = None,
+    session_id: str = "",
 ) -> dict:
     """Save all review comments to both a JSON file and a Markdown report.
 
@@ -685,20 +766,22 @@ def save_comments(
     Returns:
         Dict with keys: json_path, md_path, comments (list of comment dicts).
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     return state.save_comments(output_stem=output_stem, output_dir=output_dir)
 
 
 @mcp.tool
 def get_config() -> dict:
-    """Return save/load defaults, the web UI base URL when known, MCP session metadata if any, and the active MCP protocol version."""
+    """Return defaults, public MCP client metadata, web URL, and protocol details."""
     state = _state()
     return {
         "output_stem": state.output_stem,
         "output_dir": str(state.output_dir),
         "web_ui_url": state.web_app_url,
-        "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
+        "default_userid": state.default_userid,
+        "mcp_session": state.get_public_mcp_session_info(),
+        "mcp_sessions": state.list_public_mcp_sessions(),
         "protocol": protocol_info(),
     }
 
@@ -730,15 +813,19 @@ def resource_batch_review_server_urls() -> str:
 
 
 @mcp.tool
-def list_review_files() -> list[str]:
+def list_review_files(ctx: Context, session_id: str = "") -> list[str]:
     """List base names of saved ``*.json`` review files in output_dir (for load_review_by_stem)."""
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     return state.list_review_stems()
 
 
 @mcp.tool
-async def load_review_by_stem(stem: str) -> list[dict]:
+async def load_review_by_stem(
+    stem: str,
+    ctx: Context,
+    session_id: str = "",
+) -> list[dict]:
     """Replace in-memory comments from ``{stem}.json`` under output_dir (same as UI Load).
 
     Args:
@@ -747,7 +834,7 @@ async def load_review_by_stem(stem: str) -> list[dict]:
     Returns:
         List of loaded Comment dicts, or ``[{\"error\": \"...\"}]`` on failure.
     """
-    _require_mcp_session()
+    _require_mcp_session(ctx, session_id)
     state = _state()
     try:
         loaded = state.load_review_from_stem(stem)

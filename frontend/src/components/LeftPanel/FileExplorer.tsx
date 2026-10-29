@@ -203,33 +203,33 @@ export default function FileExplorer({
   }
   return (
     <div className="flex flex-col h-full">
-      <div className="flex flex-wrap items-center gap-1 px-2 py-1 border-b border-gray-700">
+      <div className="left-panel-file-toolbar flex flex-wrap items-center gap-1 px-2 py-1 border-b border-gray-700">
         <button
           type="button"
           onClick={expandAll}
           aria-label="Expand all folders in the file tree"
           title="Expand all folders"
-          className={`${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
+          className={`panel-responsive-action ${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
         >
           <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
             <IconExpandAll className="block h-3.5 w-3.5 max-h-full max-w-full" />
           </span>
-          <span className="leading-tight">Expand all</span>
+          <span className="panel-responsive-label leading-tight">Expand all</span>
         </button>
         <button
           type="button"
           onClick={collapseAll}
           aria-label="Collapse all folders in the file tree"
           title="Collapse all folders"
-          className={`${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
+          className={`panel-responsive-action ${toolbarBtnBase} text-gray-200 bg-gray-700 hover:bg-gray-600 border border-gray-600 leading-none`}
         >
           <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
             <IconCollapseAll className="block h-3.5 w-3.5 max-h-full max-w-full" />
           </span>
-          <span className="leading-tight">Collapse all</span>
+          <span className="panel-responsive-label leading-tight">Collapse all</span>
         </button>
         {backgroundLoading && (
-          <span className="ml-auto text-xs text-gray-500">Loading deeper folders…</span>
+          <span className="panel-responsive-status ml-auto text-xs text-gray-500">Loading deeper folders…</span>
         )}
       </div>
       <div className="monaco-like-scrollbar overflow-y-auto flex-1 py-1">

@@ -6,9 +6,41 @@ import LeftPanel from "./components/LeftPanel/index";
 import CenterPanel from "./components/CenterPanel/index";
 import RightPanel from "./components/RightPanel/index";
 
-const MIN_PANEL = 160;
+const PANEL_ICON_BUTTON_WIDTH = 32;
+const PANEL_ICON_BUTTON_COUNT = 4;
+const PANEL_TOOLBAR_GAPS = 3 * 4;
+const PANEL_TOOLBAR_HORIZONTAL_PADDING = 2 * 8;
+const PANEL_INLINE_BORDER_WIDTH = 1;
+const MIN_PANEL =
+  PANEL_ICON_BUTTON_COUNT * PANEL_ICON_BUTTON_WIDTH +
+  PANEL_TOOLBAR_GAPS +
+  PANEL_TOOLBAR_HORIZONTAL_PADDING +
+  PANEL_INLINE_BORDER_WIDTH;
 const DEFAULT_LEFT = 288;  // w-72
 const DEFAULT_RIGHT = 320; // w-80
+const LEFT_LABELS_MIN_WIDTH = 225;
+const RIGHT_LABELS_MIN_WIDTH = 381;
+const RESIZE_HANDLES_WIDTH = 2 * 4;
+
+type PanelWidths = { left: number; right: number };
+
+function getInitialPanelWidths(): PanelWidths {
+  if (typeof window === "undefined") {
+    return { left: DEFAULT_LEFT, right: DEFAULT_RIGHT };
+  }
+
+  // Side panels may use at most half the viewport after accounting for both handles.
+  const sidePanelBudget = Math.floor(window.innerWidth / 2) - RESIZE_HANDLES_WIDTH;
+  const labeledToolbarMinimum = LEFT_LABELS_MIN_WIDTH + RIGHT_LABELS_MIN_WIDTH;
+  if (sidePanelBudget < labeledToolbarMinimum) {
+    return { left: DEFAULT_LEFT, right: DEFAULT_RIGHT };
+  }
+
+  return {
+    left: Math.min(DEFAULT_LEFT, sidePanelBudget - RIGHT_LABELS_MIN_WIDTH),
+    right: RIGHT_LABELS_MIN_WIDTH,
+  };
+}
 
 export default function App() {
   const setComments = useStore((s) => s.setComments);
@@ -28,8 +60,9 @@ export default function App() {
       .catch(() => {});
   }, [setMcpSession]);
 
-  const [leftW, setLeftW] = useState(DEFAULT_LEFT);
-  const [rightW, setRightW] = useState(DEFAULT_RIGHT);
+  const [initialPanelWidths] = useState(getInitialPanelWidths);
+  const [leftW, setLeftW] = useState(initialPanelWidths.left);
+  const [rightW, setRightW] = useState(initialPanelWidths.right);
 
   // --- left divider drag ---
   const leftDragging = useRef(false);
@@ -81,7 +114,7 @@ export default function App() {
       className="flex h-screen w-screen overflow-hidden bg-gray-900 text-gray-100"
     >
       {/* Left panel */}
-      <div style={{ width: leftW, minWidth: MIN_PANEL }} className="shrink-0 h-full overflow-hidden">
+      <div style={{ width: leftW, minWidth: MIN_PANEL }} className="left-panel-container shrink-0 h-full overflow-hidden">
         <LeftPanel />
       </div>
 
@@ -105,7 +138,7 @@ export default function App() {
       />
 
       {/* Right panel */}
-      <div style={{ width: rightW, minWidth: MIN_PANEL }} className="shrink-0 h-full overflow-hidden">
+      <div style={{ width: rightW, minWidth: MIN_PANEL }} className="right-panel-container shrink-0 h-full overflow-hidden">
         <RightPanel />
       </div>
     </div>

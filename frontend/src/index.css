@@ -258,3 +258,92 @@
 .monaco-like-scrollbar::-webkit-scrollbar-thumb:active {
   background-color: rgb(191 191 191 / 0.4);
 }
+
+/* Side-panel controls respond to each draggable panel's width, not the viewport. */
+.left-panel-container,
+.right-panel-container {
+  container-type: inline-size;
+}
+
+.panel-responsive-action {
+  min-width: 2rem;
+}
+
+/* Keep the title and controls together until the panel enters compact mode. */
+.right-panel-header {
+  flex-wrap: nowrap;
+}
+
+.right-panel-filter-controls {
+  flex: 0 1 auto;
+  margin-left: auto;
+}
+
+/* At compact widths, each filter gets a row; sort stays with the path filter. */
+@container (max-width: 319px) {
+  .right-panel-filter-controls {
+    width: 100%;
+    flex: 0 0 100%;
+    margin-left: 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .right-panel-path-controls {
+    width: 100%;
+  }
+
+  .right-panel-path-filter {
+    width: 100%;
+    flex: 1 1 auto;
+  }
+
+  .right-panel-user-filter {
+    width: 100%;
+    max-width: none;
+  }
+}
+
+@container (max-width: 379px) {
+  .right-panel-header {
+    flex-wrap: wrap;
+  }
+
+  .right-panel-filter-controls {
+    flex: 0 0 100%;
+    margin-left: 0;
+  }
+
+  .right-panel-action-toolbar .panel-responsive-label {
+    display: none;
+  }
+
+  .right-panel-action-toolbar .panel-responsive-action {
+    width: 2rem;
+    flex: 0 0 2rem;
+    justify-content: center;
+    gap: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+}
+
+@container (max-width: 223px) {
+  .left-panel-file-toolbar {
+    flex-wrap: nowrap;
+  }
+
+  .left-panel-file-toolbar .panel-responsive-label,
+  .left-panel-file-toolbar .panel-responsive-status {
+    display: none;
+  }
+
+  .left-panel-file-toolbar .panel-responsive-action {
+    width: 2rem;
+    flex: 0 0 2rem;
+    justify-content: center;
+    gap: 0;
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+  }
+}

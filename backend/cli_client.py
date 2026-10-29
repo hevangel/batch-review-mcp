@@ -6,7 +6,9 @@ shell tool — one process per operation, emitting a single JSON document to std
 
 The CLI talks to a running Batch Review server over REST. Because the REST endpoints
 broadcast to WebSocket clients, every comment / open-file / highlight action also
-updates the human reviewer's browser UI in real time.
+updates the human reviewer's browser UI in real time. New comments carry the userid
+resolved from a cross-platform OS default, a per-profile setting, or an explicit override.
+Profiles keep simultaneous CLI agents from sharing mutable identity state.
 
 Server discovery (priority order):
   1. ``BATCH_REVIEW_WEB_URL`` environment variable
@@ -21,6 +23,7 @@ Output contract:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import socket
@@ -31,6 +34,7 @@ import urllib.parse
 from pathlib import Path
 
 from backend.local_url_guard import LocalUrlError, local_request
+from backend.user_identity import default_userid, normalize_userid
 
 # Default port the server binds (matches main.py _find_free_port default).
 _DEFAULT_PORT = 9000
@@ -41,6 +45,71 @@ _SERVER_STARTUP_TIMEOUT = 20  # seconds to wait for a spawned server to bind
 # Directory written by ``start`` so other verbs can discover the running server.
 _PORT_DIR_NAME = ".batch_review"
 _PORT_FILE_NAME = "server.json"
+_USER_PROFILE_DIR_NAME = "users"
+_DEFAULT_USER_PROFILE = "default"
+
+
+# ---------------------------------------------------------------------------
+# CLI user identity
+# ---------------------------------------------------------------------------
+
+def _user_profile_name(explicit_profile: str | None = None) -> str:
+    """Resolve the independent CLI identity profile used for this invocation."""
+    return (
+        (explicit_profile or "").strip()
+        or os.environ.get("BATCH_REVIEW_USER_PROFILE", "").strip()
+        or _DEFAULT_USER_PROFILE
+    )
+
+
+def _user_profile_path(repo_root: Path, profile: str) -> Path:
+    digest = hashlib.sha256(profile.encode("utf-8")).hexdigest()
+    return repo_root / _PORT_DIR_NAME / _USER_PROFILE_DIR_NAME / f"{digest}.json"
+
+
+def _read_profile_userid(repo_root: Path, profile: str) -> str:
+    """Read one CLI profile, falling back to the account running the command."""
+    profile_path = _user_profile_path(repo_root, profile)
+    try:
+        payload = json.loads(profile_path.read_text(encoding="utf-8"))
+        return normalize_userid(payload.get("userid"), fallback=default_userid())
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return default_userid()
+
+
+def _write_profile_userid(repo_root: Path, profile: str, userid: str) -> str:
+    """Atomically persist a CLI profile so separate profiles can run concurrently."""
+    if userid is None or not userid.strip():
+        raise ValueError("userid must be a non-empty string")
+    normalized = normalize_userid(userid)
+    profile_path = _user_profile_path(repo_root, profile)
+    profile_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary_path = profile_path.with_suffix(f".tmp-{os.getpid()}")
+    temporary_path.write_text(
+        json.dumps({"profile": profile, "userid": normalized}, indent=2),
+        encoding="utf-8",
+    )
+    os.replace(temporary_path, profile_path)
+    return normalized
+
+
+def _current_cli_userid(args: argparse.Namespace, repo_root: Path) -> str:
+    explicit = getattr(args, "userid", None)
+    if explicit:
+        return normalize_userid(explicit)
+    environment_userid = os.environ.get("BATCH_REVIEW_USERID", "")
+    if environment_userid:
+        return normalize_userid(environment_userid)
+    profile = _user_profile_name(getattr(args, "profile", None))
+    return _read_profile_userid(repo_root, profile)
+
+
+def _current_cli_userid_or_exit(args: argparse.Namespace, repo_root: Path) -> str:
+    try:
+        return _current_cli_userid(args, repo_root)
+    except ValueError as exc:
+        print(json.dumps({"error": str(exc)}))
+        raise SystemExit(1) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -437,13 +506,34 @@ def cmd_list_reviews(args: argparse.Namespace) -> None:
     print(json.dumps(_api(base, "/api/review-files")))
 
 
+def cmd_get_userid(args: argparse.Namespace) -> None:
+    """Print the current userid for one local CLI profile."""
+    repo_root = Path(args.root).resolve()
+    profile = _user_profile_name(args.profile)
+    print(json.dumps({"profile": profile, "userid": _current_cli_userid_or_exit(args, repo_root)}))
+
+
+def cmd_set_userid(args: argparse.Namespace) -> None:
+    """Set the userid carried by future CLI comments for one profile."""
+    repo_root = Path(args.root).resolve()
+    profile = _user_profile_name(args.profile)
+    try:
+        userid = _write_profile_userid(repo_root, profile, args.userid)
+    except ValueError as exc:
+        print(json.dumps({"error": str(exc)}))
+        raise SystemExit(1) from exc
+    print(json.dumps({"ok": True, "profile": profile, "userid": userid}))
+
+
 # ---------------------------------------------------------------------------
 # Mutation verbs
 # ---------------------------------------------------------------------------
 
 def cmd_add_comment(args: argparse.Namespace) -> None:
-    base = require_server(Path(args.root).resolve())
+    repo_root = Path(args.root).resolve()
+    base = require_server(repo_root)
     body: dict = {
+        "userid": _current_cli_userid_or_exit(args, repo_root),
         "file_path": args.path,
         "line_start": args.line_start,
         "line_end": args.line_end,
@@ -554,8 +644,12 @@ def cmd_jump(args: argparse.Namespace) -> None:
 
 def cmd_init_session(args: argparse.Namespace) -> None:
     """Register this CLI client with the server (mirrors init_batch_review_session)."""
-    base = require_server(Path(args.root).resolve())
-    body: dict = {"coding_agent": args.agent or "batch-review-cli"}
+    repo_root = Path(args.root).resolve()
+    base = require_server(repo_root)
+    body: dict = {
+        "coding_agent": args.agent or "batch-review-cli",
+        "userid": _current_cli_userid_or_exit(args, repo_root),
+    }
     if args.model:
         body["model_name"] = args.model
     if args.version:
@@ -571,6 +665,7 @@ def cmd_init_session(args: argparse.Namespace) -> None:
 CLI_VERBS = [
     "start", "stop",
     "config", "url", "changes", "diff", "ls", "file",
+    "get-userid", "set-userid",
     "add-comment", "list-comments", "update-comment", "delete-comment",
     "clear", "delete-outdated", "recompute-stale",
     "save", "load", "list-reviews",
@@ -586,6 +681,14 @@ _VERB_ALIASES = {
 
 def _add_root_arg(p: argparse.ArgumentParser) -> None:
     p.add_argument("--root", default=os.getcwd(), help="Repository root (default: cwd)")
+
+
+def _add_user_profile_arg(p: argparse.ArgumentParser) -> None:
+    p.add_argument(
+        "--profile",
+        default=None,
+        help="Independent userid profile (default: BATCH_REVIEW_USER_PROFILE or 'default').",
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -650,9 +753,24 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path", help="File path relative to repo root.")
     p.set_defaults(func=cmd_file)
 
+    # get-userid
+    p = sub.add_parser("get-userid", help="Show the userid used for new CLI comments.")
+    _add_root_arg(p)
+    _add_user_profile_arg(p)
+    p.set_defaults(func=cmd_get_userid)
+
+    # set-userid
+    p = sub.add_parser("set-userid", help="Change the userid used for new CLI comments.")
+    _add_root_arg(p)
+    _add_user_profile_arg(p)
+    p.add_argument("userid", help="Userid to attribute to future comments.")
+    p.set_defaults(func=cmd_set_userid)
+
     # add-comment
     p = sub.add_parser("add-comment", help="Add a review comment.")
     _add_root_arg(p)
+    _add_user_profile_arg(p)
+    p.add_argument("--userid", default=None, help="Override userid for this comment only.")
     p.add_argument("path", help="File path relative to repo root.")
     p.add_argument("line_start", type=int, help="First line (1-based).")
     p.add_argument("line_end", type=int, help="Last line (1-based, inclusive).")
@@ -735,6 +853,8 @@ def build_parser() -> argparse.ArgumentParser:
     # init-session
     p = sub.add_parser("init-session", help="Register the CLI client with the server.")
     _add_root_arg(p)
+    _add_user_profile_arg(p)
+    p.add_argument("--userid", default=None, help="Override userid for this session.")
     p.add_argument("--agent", default=None, help="Agent name (default: batch-review-cli).")
     p.add_argument("--model", default=None, help="Model name.")
     p.add_argument("--version", default=None, help="Client version.")

@@ -24,6 +24,9 @@ import {
 import { PANEL_BOTTOM_BAR_CLASS } from "../ui/panelBottomBar";
 
 type FilterMode = "all" | "file" | "folder" | "folder-deep";
+type UseridVisibilityOverride = "show" | "hide" | null;
+
+const ALL_USERS = "";
 
 function applyFilter(comments: Comment[], mode: FilterMode, openFilePath: string | null): Comment[] {
   if (mode === "all" || !openFilePath) return comments;
@@ -72,6 +75,11 @@ export default function RightPanel() {
   const skipBlurCommitRef = useRef(false);
 
   const [filterMode, setFilterMode] = useState<FilterMode>("all");
+  const [selectedUserid, setSelectedUserid] = useState(ALL_USERS);
+  const [defaultUserid, setDefaultUserid] = useState<string | null>(null);
+  const [identityConfigLoaded, setIdentityConfigLoaded] = useState(false);
+  const [useridVisibilityOverride, setUseridVisibilityOverride] =
+    useState<UseridVisibilityOverride>(null);
   const [reloadingStale, setReloadingStale] = useState(false);
   const [deletingOutdated, setDeletingOutdated] = useState(false);
   const [reviewFiles, setReviewFiles] = useState<string[]>([]);
@@ -84,10 +92,34 @@ export default function RightPanel() {
   const listRef = useRef<HTMLDivElement>(null);
   const dragIdRef = useRef<string | null>(null);
 
-  // Fetch current output stem from server config
+  const userids = Array.from(new Set(comments.map((comment) => comment.userid))).sort((a, b) =>
+    a.localeCompare(b),
+  );
+  const allCommentsFromCurrentUser =
+    comments.length > 0 &&
+    defaultUserid !== null &&
+    comments.every((comment) => comment.userid === defaultUserid);
+  const showUserids =
+    useridVisibilityOverride === "show" ||
+    (useridVisibilityOverride === null && identityConfigLoaded && !allCommentsFromCurrentUser);
+
+  // Fetch current output stem and the local-account userid used by browser comments.
   useEffect(() => {
-    getConfig().then((cfg) => setReviewStem(cfg.output_stem)).catch(() => {});
+    getConfig()
+      .then((cfg) => {
+        setReviewStem(cfg.output_stem);
+        setDefaultUserid(cfg.default_userid);
+        setIdentityConfigLoaded(true);
+      })
+      .catch(() => {});
   }, []);
+
+  // Blind mode must not leak an identity through an active user filter.
+  useEffect(() => {
+    if (!showUserids || (selectedUserid && !userids.includes(selectedUserid))) {
+      setSelectedUserid(ALL_USERS);
+    }
+  }, [selectedUserid, showUserids, userids]);
 
   // MCP / agent toast — auto-dismiss like a transient status message
   useEffect(() => {
@@ -262,7 +294,11 @@ export default function RightPanel() {
     reorderComments(reordered);
   }, [comments, reorderComments]);
 
-  const visible = applyFilter(comments, filterMode, openFilePath);
+  const pathFilteredComments = applyFilter(comments, filterMode, openFilePath);
+  const effectiveSelectedUserid = showUserids ? selectedUserid : ALL_USERS;
+  const visible = effectiveSelectedUserid
+    ? pathFilteredComments.filter((comment) => comment.userid === effectiveSelectedUserid)
+    : pathFilteredComments;
   const outdatedCount = comments.filter((c) => c.outdated).length;
 
   const handleDeleteOutdated = async () => {
@@ -287,11 +323,11 @@ export default function RightPanel() {
 
   return (
     <div className="flex flex-col h-full bg-gray-800 border-l border-gray-700">
-      {/* Header: title + filters, then full-width divider, then Clear all */}
+      {/* Header: title and responsive sort/path/user controls, then shared action row */}
       <div className="flex flex-col shrink-0 border-b border-gray-700">
-        <div className="flex items-start justify-between px-3 py-2 gap-2">
+        <div className="right-panel-header flex items-start justify-between px-3 py-2 gap-2">
           <h2 className="text-sm font-semibold text-gray-200 shrink-0">
-            Review Comments
+            Comments
             {comments.length > 0 && (
               <span className="ml-1.5 text-xs bg-blue-700 text-blue-100 px-1.5 rounded-full">
                 {visible.length !== comments.length ? `${visible.length}/${comments.length}` : comments.length}
@@ -299,43 +335,84 @@ export default function RightPanel() {
             )}
           </h2>
 
-          <div className="flex items-center gap-1 shrink-0">
-            {/* Sort by file */}
-            <button
-              type="button"
-              onClick={handleSortByFile}
-              title="Sort by file path"
-              className="px-1.5 py-0.5 text-gray-400 hover:text-gray-200 text-sm rounded hover:bg-gray-700"
-            >
-              ⇅
-            </button>
+          <div className="right-panel-filter-controls flex items-center justify-end gap-1 min-w-0">
+            <div className="right-panel-path-controls flex items-center gap-1 min-w-0">
+              {/* Sort by file */}
+              <button
+                type="button"
+                onClick={handleSortByFile}
+                title="Sort by file path"
+                className="flex-none px-1.5 py-0.5 text-gray-400 hover:text-gray-200 text-sm rounded hover:bg-gray-700"
+              >
+                ⇅
+              </button>
 
-            {/* Filter dropdown */}
-            <select
-              value={filterMode}
-              onChange={(e) => setFilterMode(e.target.value as FilterMode)}
-              className="text-xs bg-gray-700 border border-gray-600 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
-              title="Filter comments"
-            >
-              <option value="all">All</option>
-              <option value="file">This file</option>
-              <option value="folder">This folder</option>
-              <option value="folder-deep">Folder + sub</option>
-            </select>
+              {/* Path filter dropdown */}
+              <select
+                value={filterMode}
+                onChange={(e) => setFilterMode(e.target.value as FilterMode)}
+                className="right-panel-path-filter min-w-0 text-xs bg-gray-700 border border-gray-600 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+                title="Filter comments by path"
+                aria-label="Filter comments by path"
+              >
+                <option value="all">All</option>
+                <option value="file">This file</option>
+                <option value="folder">This folder</option>
+                <option value="folder-deep">Folder + sub</option>
+              </select>
+            </div>
+
+            {showUserids && userids.length > 1 && (
+              <select
+                value={selectedUserid}
+                onChange={(event) => setSelectedUserid(event.target.value)}
+                aria-label="Filter comments by user"
+                title="Filter comments by user"
+                className="right-panel-user-filter min-w-0 max-w-40 text-xs bg-gray-700 border border-gray-600 text-gray-200 rounded px-1 py-0.5 focus:outline-none focus:border-blue-500"
+              >
+                <option value={ALL_USERS}>All users</option>
+                {userids.map((userid) => (
+                  <option key={userid} value={userid}>{userid}</option>
+                ))}
+              </select>
+            )}
           </div>
         </div>
 
-        <div className="border-t border-gray-700 px-3 py-1.5 flex flex-wrap justify-end items-center gap-1.5">
+        <div className="right-panel-action-toolbar border-t border-gray-700 px-2 py-1.5 flex flex-nowrap justify-end items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setUseridVisibilityOverride(showUserids ? "hide" : "show")}
+            aria-pressed={!showUserids}
+            aria-label={showUserids ? "Hide user IDs for blind review" : "Show user IDs"}
+            title={
+              showUserids
+                ? "Hide user IDs and disable user filtering for blind review"
+                : allCommentsFromCurrentUser && useridVisibilityOverride === null
+                  ? "User IDs are hidden automatically because every comment is yours; click to show them"
+                  : "Show user IDs and enable user filtering"
+            }
+            className={`panel-responsive-action inline-flex flex-none items-center gap-1 px-2 py-1 text-xs font-medium rounded border ${
+              showUserids
+                ? "bg-gray-600 hover:bg-gray-500 text-white border-transparent"
+                : "bg-violet-900/70 hover:bg-violet-800/80 text-violet-100 border-violet-600/60"
+            }`}
+          >
+            <span aria-hidden="true" className="flex h-3.5 w-3.5 shrink-0 items-center justify-center">
+              {showUserids ? "◉" : "◌"}
+            </span>
+            <span className="panel-responsive-label">{showUserids ? "Blind review" : "Show IDs"}</span>
+          </button>
           <button
             type="button"
             onClick={handleReloadCommentStale}
             disabled={comments.length === 0 || reloadingStale}
             aria-label="Reload comments: re-scan files on disk and update which comments are marked outdated."
             title="Re-scan files and update outdated marks (strikethrough) against highlighted text"
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-600 hover:bg-gray-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            className="panel-responsive-action inline-flex flex-none items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-gray-600 hover:bg-gray-500 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <IconRefresh className={toolbarIconClass} />
-            <span>{reloadingStale ? "…" : "Reload"}</span>
+            <span className="panel-responsive-label">{reloadingStale ? "…" : "Reload"}</span>
           </button>
           <button
             type="button"
@@ -343,10 +420,10 @@ export default function RightPanel() {
             disabled={outdatedCount === 0 || deletingOutdated}
             aria-label={`Delete outdated: remove ${outdatedCount} comment(s) marked outdated. Run Reload first so marks are current. Disk files unchanged until you save.`}
             title="Remove every comment marked outdated (use Reload first to refresh marks)"
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-rose-900/60 hover:bg-rose-800/70 text-white border border-rose-700/50 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="panel-responsive-action inline-flex flex-none items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-rose-900/60 hover:bg-rose-800/70 text-white border border-rose-700/50 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <IconTrash className={toolbarIconClass} />
-            <span>{deletingOutdated ? "…" : "Outdated"}</span>
+            <span className="panel-responsive-label">{deletingOutdated ? "…" : "Outdated"}</span>
           </button>
           <button
             type="button"
@@ -354,10 +431,10 @@ export default function RightPanel() {
             disabled={comments.length === 0}
             aria-label="Clear all: remove every comment from this session. Saved JSON on disk is unchanged until you save again."
             title="Remove every comment from this session (disk files unchanged until you save)"
-            className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
+            className="panel-responsive-action inline-flex flex-none items-center gap-1 px-2 py-1 text-xs font-medium rounded bg-blue-700 hover:bg-blue-600 text-white disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <IconClearSession className={toolbarIconClass} />
-            <span>Clear all</span>
+            <span className="panel-responsive-label">Clear all</span>
           </button>
         </div>
       </div>
@@ -383,6 +460,7 @@ export default function RightPanel() {
             <CommentBox
               key={c.id}
               comment={c}
+              showUserid={showUserids}
               isNew={c.id === newestCommentId}
               draggable
               onDragStart={(e) => handleDragStart(e, c.id)}

@@ -6,6 +6,7 @@ import { IconRefresh, toolbarIconClass } from "../ui/toolbarIcons";
 
 interface CommentBoxProps {
   comment: Comment;
+  showUserid?: boolean;
   isNew?: boolean;
   draggable?: boolean;
   onDragStart?: (e: React.DragEvent) => void;
@@ -15,6 +16,7 @@ interface CommentBoxProps {
 
 export default function CommentBox({
   comment,
+  showUserid = true,
   isNew = false,
   draggable = false,
   onDragStart,
@@ -182,6 +184,15 @@ export default function CommentBox({
           ✕
         </button>
       </div>
+
+      {showUserid && (
+        <div
+          className="text-[11px] text-gray-400 font-mono truncate"
+          title={`User ID: ${comment.userid}`}
+        >
+          User: <span className="text-gray-300">{comment.userid}</span>
+        </div>
+      )}
 
       {outdated && (
         <div className="text-[11px] font-semibold uppercase tracking-wide text-rose-300 bg-rose-950/50 border border-rose-600/50 rounded px-2 py-1">

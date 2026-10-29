@@ -1,6 +1,8 @@
 """Review comments REST endpoints."""
 from __future__ import annotations
 
+import uuid
+
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
@@ -29,6 +31,7 @@ async def create_comment(body: CreateCommentRequest) -> Comment:
         line_end=body.line_end,
         text=body.text,
         highlighted_text=body.highlighted_text,
+        userid=body.userid,
         region_x1=body.region_x1,
         region_y1=body.region_y1,
         region_x2=body.region_x2,
@@ -201,14 +204,16 @@ async def bulk_load_comments(body: BulkLoadRequest) -> list[Comment]:
 
 @util_router.get("/config")
 def get_config() -> JSONResponse:
-    """Return the current server configuration (output_stem, output_dir, web_ui_url, mcp_session, protocol)."""
+    """Return server configuration and public MCP client display metadata."""
     state = get_state()
     return JSONResponse(
         {
             "output_stem": state.output_stem,
             "output_dir": str(state.output_dir),
             "web_ui_url": state.web_app_url,
-            "mcp_session": dict(state.mcp_session_info) if state.mcp_session_info else None,
+            "default_userid": state.default_userid,
+            "mcp_session": state.get_public_mcp_session_info(),
+            "mcp_sessions": state.list_public_mcp_sessions(),
             "protocol": protocol_info(),
         }
     )
@@ -328,22 +333,24 @@ async def ui_jump_to_comment(body: dict) -> JSONResponse:
 
 @util_router.post("/session/init")
 async def init_session(body: dict) -> JSONResponse:
-    """Register an agent client with the server (mirrors init_batch_review_session MCP tool).
+    """Register one REST/CLI agent session with a server-generated private session ID.
 
-    Body: ``{"coding_agent": str, "model_name"?: str, "client_version"?: str}``
-
-    Unlike the MCP tool, this endpoint is ungated — all REST routes work without it.
-    But calling it lets the UI show which agent is connected.
+    Body: ``{"coding_agent": str, "model_name"?: str, "client_version"?: str,
+    "userid"?: str}``
     """
     state = get_state()
     coding_agent = body.get("coding_agent", "")
     try:
         info = state.register_mcp_session(
+            session_id=str(uuid.uuid4()),
             coding_agent=coding_agent,
             model_name=body.get("model_name", ""),
             client_version=body.get("client_version", ""),
+            userid=body.get("userid"),
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    await state.broadcast(WsEvent(type="mcp_session", payload=dict(info)))
+    await state.broadcast(
+        WsEvent(type="mcp_session", payload=state.public_mcp_session(info))
+    )
     return JSONResponse({"ok": True, **info})

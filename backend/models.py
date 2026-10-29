@@ -5,7 +5,9 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from backend.user_identity import default_userid, normalize_userid
 
 
 class FileInfo(BaseModel):
@@ -28,6 +30,7 @@ class GitChange(BaseModel):
 
 class Comment(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    userid: str = Field(default_factory=default_userid)
     file_path: str
     line_start: int
     line_end: int
@@ -62,8 +65,15 @@ class Comment(BaseModel):
     #: True when on-disk text at ``line_start``–``line_end`` no longer matches ``highlighted_text``.
     outdated: bool = False
 
+    @field_validator("userid", mode="before")
+    @classmethod
+    def normalize_comment_userid(cls, value: object) -> str:
+        """Keep saved reviews compatible when userid is missing, null, or blank."""
+        return normalize_userid(value if isinstance(value, str) else None)
+
 
 class CreateCommentRequest(BaseModel):
+    userid: Optional[str] = None
     file_path: str
     line_start: int = 0
     line_end: int = 0
@@ -81,6 +91,15 @@ class CreateCommentRequest(BaseModel):
     anchor_kind: Optional[str] = None
     html_selector: Optional[str] = None
     html_fingerprint: Optional[str] = None
+
+    @field_validator("userid", mode="before")
+    @classmethod
+    def normalize_requested_userid(cls, value: object) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            raise ValueError("userid must be a string")
+        return normalize_userid(value)
 
 
 class SaveCommentsRequest(BaseModel):

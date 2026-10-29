@@ -94,8 +94,8 @@ flowchart LR
 
     subgraph Backend["Batch Review backend process"]
         Server["FastAPI app<br/>static frontend `/`<br/>REST `/api/*`<br/>WebSocket `/ws`"]
-        Mcp["FastMCP server<br/>stdio transport<br/>HTTP transport `/mcp`"]
-        State["Shared AppState<br/>repo root, comments, MCP session,<br/>connected WebSocket clients"]
+        Mcp["FastMCP server<br/>stdio transport<br/>HTTP transport `/mcp/`"]
+        State["Shared AppState<br/>repo root, comments, per-client MCP sessions,<br/>connected WebSocket clients"]
     end
 
     Repo["Git repository under review"]
@@ -119,7 +119,8 @@ flowchart LR
 ```
 
 - The browser loads the React app from the FastAPI server, fetches files/comments/config over REST, and stays synchronized through `/ws`.
-- MCP tools and REST routes both operate on the same in-memory `AppState`, so agent-created comments appear in the UI immediately.
+- MCP tools and REST routes both operate on the same in-memory `AppState`, so agent-created comments appear in the UI immediately. Every comment carries a `userid`; browser comments default to the Windows/Linux/macOS account running the server, while MCP connections and CLI profiles can change their own current userid.
+- Multiple MCP clients can connect to one server concurrently. They share the collaborative comment collection, but each client gets an isolated application session and current userid; legacy FastMCP connections map their `Context.session_id` to that application session, while modern stateless clients pass its private ID explicitly.
 - In `--mcp` mode, the HTTP server keeps the web UI available while FastMCP also runs over stdio for editor and CLI hosts.
 - In **CLI client mode**, coding agents invoke `batch-review <verb>` (e.g. `add-comment`, `diff`) which calls the same REST endpoints — no MCP tool schemas loaded into agent context. The server writes `.batch_review/server.json` on startup so CLI verbs can discover it.
 
@@ -209,7 +210,11 @@ batch-review changes
 # Inspect a diff
 batch-review diff main.py
 
-# Add a comment anchored to a line range
+# Identity defaults to the OS account running the command; change it when needed
+batch-review get-userid
+batch-review set-userid reviewer-a
+
+# Add a comment anchored to a line range (captures the current userid)
 batch-review add-comment main.py 10 15 "This null check is redundant."
 
 # Save the review report (JSON + Markdown)
@@ -220,6 +225,8 @@ batch-review stop
 ```
 
 **Server discovery** — verbs auto-discover a running server in priority order: the `BATCH_REVIEW_WEB_URL` env var, then `<repo_root>/.batch_review/server.json` (written by `start`), then probing ports 9000–9999.
+
+**CLI identity** — `get-userid` and `set-userid` manage the userid attached to new CLI comments. The default is the local OS account from Python's cross-platform account lookup. Profiles are stored independently under `.batch_review/users/`; use `--profile NAME` or `BATCH_REVIEW_USER_PROFILE` when multiple agents share one checkout. `BATCH_REVIEW_USERID` or `add-comment --userid ID` overrides the selected profile for one process/request. Userids may contain printable international text (maximum 256 characters), but non-printable Unicode, formatting, and non-ASCII separator characters are rejected. Userids are attribution metadata, not authentication.
 
 **Verb reference** — all verbs accept `--root PATH` (default: cwd):
 
@@ -233,7 +240,9 @@ batch-review stop
 | `diff` | `<path> [--mode ...]` | Unified diff + original/modified content |
 | `ls` | `[path] [--depth N]` | List files/directories |
 | `file` | `<path>` | Read file content + line count + language |
-| `add-comment` | `<path> <L1> <L2> [text] [--highlighted TEXT]` | Add a comment |
+| `get-userid` | `[--profile NAME]` | Show the userid used for new CLI comments |
+| `set-userid` | `<userid> [--profile NAME]` | Change the userid for one CLI profile |
+| `add-comment` | `<path> <L1> <L2> [text] [--highlighted TEXT] [--profile NAME] [--userid ID]` | Add a comment with the resolved userid |
 | `list-comments` | — | List all comments |
 | `update-comment` | `<id> <text>` | Edit a comment's text |
 | `delete-comment` | `<id>` | Delete one comment |
@@ -333,7 +342,7 @@ See **CLI client mode** above for the full verb reference, or run `batch-review 
 
 ### Left panel — two tabs
 
-**Files tab** — lazy directory tree. The first render loads only the first few levels so large repositories stay responsive; expanding a folder loads its children on demand while deeper folders continue hydrating in the background. Click a file to open it in the center panel.
+**Files tab** — lazy directory tree. The first render loads only the first few levels so large repositories stay responsive; expanding a folder loads its children on demand while deeper folders continue hydrating in the background. Click a file to open it in the center panel. **Expand all** and **Collapse all** share the file-tree toolbar; their text labels collapse to icons with tooltips when the resizable left panel is narrow.
 
 The top bar also includes a theme toggle next to the reload control. The app starts in dark mode and remembers your light/dark choice in the browser.
 
@@ -361,9 +370,12 @@ Use **Local** for working tree/index changes vs `HEAD`, **Commit** for a previou
 
 Each comment shows:
 - `@filename:L10-15` reference — click to jump to that location in the center panel
+- The comment `userid` when identity display is enabled
 - A text area for your review notes (auto-saves on blur)
 - For outdated text comments, a refresh icon inside the textbox that re-captures the current highlighted text at that line range and clears the outdated state
 - A delete button
+
+The **Comments** header shows the path sort control, path filter, and (for mixed-user reviews) user filter in its first row. When the panel enters its compact control width, all three controls move below the title as one group; at narrower widths, the path and user filters use separate rows while sort stays beside the path filter. If every comment belongs to the same userid as the account running the server, redundant IDs are hidden automatically. **Blind review** / **Show IDs**, **Reload**, **Outdated**, and **Clear all** share one action row. Use Blind review / Show IDs to explicitly hide or reveal attribution; blind mode also removes and resets the user filter so it cannot leak reviewer identity. When the resizable panel becomes too narrow, action text hides before the icons while tooltips and accessible labels remain; both side panels stop shrinking at the width required by four compact icon buttons. On initial load, the app makes both side panels wide enough to show their toolbar labels whenever doing so still leaves at least half of the viewport for the center panel; smaller viewports retain the compact defaults.
 
 The **💾 Save Review** button saves all comments to:
 - `{output-dir}/{output}.json` — machine-readable JSON array
@@ -377,7 +389,7 @@ When the server starts, if that JSON file already exists it is **loaded into the
 
 ## MCP Tools
 
-AI agents connect via `http://localhost:PORT/mcp` (HTTP transport) or stdio (`--mcp` flag).
+AI agents connect via `http://localhost:PORT/mcp/` (HTTP transport) or stdio (`--mcp` flag).
 
 The MCP surface is intentionally **review-first**. Batch Review is not trying to be a
 general repo browser or editor API; it is a shared review-state server for:
@@ -389,11 +401,14 @@ general repo browser or editor API; it is a shared review-state server for:
 
 A typical agent flow is:
 
-1. Call `get_git_changes()`
-2. Call `get_git_diff(path)` for files worth reviewing
-3. Use `get_file_content(path)` only when extra non-diff context is needed
-4. Add or update comments, optionally driving the shared UI with open/highlight/jump tools
-5. Save or load the review session with the review file tools
+1. Call `init_batch_review_session(coding_agent, model_name?, client_version?, userid?)` and retain its returned `session_id`
+2. Pass `session_id` to later calls when using modern stateless MCP (legacy connection-scoped clients may omit it)
+3. Optionally call `set_current_userid(userid, session_id?)` when the reviewer identity changes
+4. Call `get_git_changes(session_id?)`
+5. Call `get_git_diff(path, session_id?)` for files worth reviewing
+6. Use `get_file_content(path, session_id?)` only when extra non-diff context is needed
+7. Add or update comments, optionally driving the shared UI with open/highlight/jump tools
+8. Save or load the review session with the review file tools
 
 ### Protocol compatibility
 
@@ -415,6 +430,19 @@ The active protocol version is surfaced in the `get_config` MCP tool and the `GE
 ```
 
 The single source of truth for these values is [`backend/mcp_compat.py`](backend/mcp_compat.py).
+
+### Multi-client session and userid scheme
+
+One Batch Review **server process** supports multiple simultaneous stdio/HTTP MCP clients and browser/CLI users:
+
+- `init_batch_review_session` returns a random application `session_id`. It is a private bearer capability returned only to the initializing caller: shared config, WebSocket presence events, and logs expose display metadata but never session IDs or per-session userids. Modern stateless clients pass it to every later gated tool.
+- Legacy stdio/HTTP connections may omit the application ID because Batch Review privately maps FastMCP's connection `Context.session_id` to the same application session. REST/CLI session initialization also generates IDs server-side, and duplicate registration is rejected rather than overwriting an existing session.
+- `get_current_userid(session_id?)` and `set_current_userid(userid, session_id?)` read or change only that application session. `add_comment(..., session_id?)` copies the current value into the comment's immutable attribution field. A later identity change affects only future comments.
+- All gated MCP tools accept the optional application `session_id`, so modern requests do not depend on cross-request transport state. A server process accepts up to 256 application sessions and rejects additional initialization instead of invalidating an existing private capability; restart the server to clear the registry. Public metadata is not a durable or disconnect-aware presence list.
+- Browser/REST comments with no explicit userid use the server process account. CLI calls resolve an independent local profile and send the userid on every add request, so short-lived CLI processes do not depend on mutable server-global identity.
+- Comments, loaded review files, saves, and WebSocket broadcasts remain intentionally shared across sessions: this is one collaborative review, not a private review per user. Destructive operations still affect the shared review.
+
+This is concurrency-safe for identity in the supported single Python process. Separate Batch Review processes do **not** share memory or coordinate writes to the same output file. Also, userid is self-asserted attribution on this local unauthenticated app; it is not authorization. Deployments requiring trusted identities, permissions, or multi-process scaling should add authentication and a shared transactional store.
 
 ### Repo-local MCP host configuration
 
@@ -445,7 +473,9 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 
 | Tool | Description |
 |---|---|
-| `init_batch_review_session(coding_agent, model_name?, client_version?)` | **Call first** once per MCP connection; registers the host and model. Other tools return an error until this succeeds (except `get_config`, `get_review_web_url`, and resource `batch-review://server/urls`). |
+| `init_batch_review_session(coding_agent, model_name?, client_version?, userid?)` | **Call first**; returns an application `session_id`. Pass it to later tools for modern stateless MCP; legacy connection-scoped clients may omit it. Other tools return an error until the application session exists (except `get_config`, `get_review_web_url`, and resource `batch-review://server/urls`). |
+| `get_current_userid(session_id?)` | Return the userid used for future comments in that application session |
+| `set_current_userid(userid, session_id?)` | Change the userid for future comments in that application session only |
 | `get_git_changes()` | List changed files vs HEAD |
 | `get_git_diff(path)` | Unified diff + original/modified content |
 | `add_comment(...)` | Add a review comment; source comments use line ranges, while DOCX/PPTX comments can use `document_kind`, `document_page`, normalized regions, `document_anchor`, and `document_fingerprint`; shows a short notice in the UI |
@@ -463,11 +493,11 @@ agent --approve-mcps -p "Your prompt that may call MCP tools"
 | `open_file_in_ui(path, mode)` | Open a file in the center panel (`view` or `diff`); same path+mode refreshes the view |
 | `highlight_in_ui(path, line_start?, line_end?, pdf_page?, region_x1?, …)` | **Source files:** ``line_start``–``line_end`` (1-based). **PDFs:** ``pdf_page`` + ``region_*`` normalized 0–1 on that page. **Images:** ``region_*`` in original pixels. **DOCX/PPTX:** ``document_page`` + normalized ``region_*`` (and optional `document_kind`/anchor fields) |
 | `jump_to_comment_in_ui(comment_id)` | Same as clicking a comment’s `@file:L…` link: open the file and highlight that anchor |
-| `get_config()` | Return `output_stem`, `output_dir`, and `web_ui_url` (when the server has bound) |
+| `get_config()` | Return save defaults, web/protocol details, and public MCP client display metadata (never session capabilities or per-session userids) |
 | `get_review_web_url()` | Return `web_ui`, `websocket`, and `mcp_http` URLs for the running app |
 | *(resource)* | MCP resource URI **`batch-review://server/urls`** — same URL JSON as `get_review_web_url` (`resources/read`); readable **before** `init_batch_review_session` |
 
-Agents should call **`init_batch_review_session`** immediately after connecting (with a non-empty `coding_agent`, e.g. `Cursor` or `Claude Desktop`). The server enforces this: calling any other tool first yields a clear “call init…” error.
+Agents should call **`init_batch_review_session`** before review tools (with a non-empty `coding_agent`, e.g. `Cursor` or `Claude Desktop`, and optionally `userid`) and retain the returned application `session_id`. Modern stateless clients pass that value to every later gated tool; legacy connection-scoped clients can omit it. The default userid is the account running the Batch Review server; use `set_current_userid` whenever an agent needs to attribute future comments to a different reviewer.
 
 Comment **add**, **update**, **delete**, **clear_all_comments**, **delete_outdated_comments**, **recompute_comment_stale**, and **load_review_by_stem** also push a dismissible toast at the bottom of the right panel (similar styling to the post-save path hints).
 
@@ -477,10 +507,13 @@ Comment **add**, **update**, **delete**, **clear_all_comments**, **delete_outdat
 
 ### JSON (`review_comments.json`)
 
+Every saved comment includes `userid`. Older JSON files without it remain loadable and are assigned the account running the server when loaded, so the next save writes the complete schema.
+
 ```json
 [
   {
     "id": "4c66b5fc-...",
+    "userid": "reviewer-a",
     "file_path": "src/auth.py",
     "line_start": 42,
     "line_end": 55,
@@ -508,6 +541,8 @@ _Generated: 2026-04-15 10:00 UTC — 3 comment(s)_
 ## src/auth.py
 
 ### `@src/auth.py:L42-55`
+> **User ID:** `reviewer-a`
+>
 > Token is never validated — add expiry check.
 
 ---

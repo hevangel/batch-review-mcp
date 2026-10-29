@@ -7,6 +7,7 @@ import type {
   FileInfo,
   GitChange,
   GitCompareParams,
+  McpSessionPayload,
 } from "./types";
 
 const BASE = "";
@@ -222,21 +223,17 @@ export function getConfig(): Promise<{
   output_stem: string;
   output_dir: string;
   web_ui_url: string | null;
-  mcp_session: {
-    coding_agent: string;
-    model_name: string;
-    client_version: string;
-  } | null;
+  default_userid: string;
+  mcp_session: McpSessionPayload | null;
+  mcp_sessions: McpSessionPayload[];
 }> {
   return json<{
     output_stem: string;
     output_dir: string;
     web_ui_url: string | null;
-    mcp_session: {
-      coding_agent: string;
-      model_name: string;
-      client_version: string;
-    } | null;
+    default_userid: string;
+    mcp_session: McpSessionPayload | null;
+    mcp_sessions: McpSessionPayload[];
   }>("/api/config");
 }
 

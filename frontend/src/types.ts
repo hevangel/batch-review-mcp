@@ -32,6 +32,7 @@ export type DocumentKind = "docx" | "pptx";
 
 export interface Comment {
   id: string;
+  userid: string;
   file_path: string;
   line_start: number;
   line_end: number;
@@ -138,7 +139,7 @@ export interface AgentNoticePayload {
   message: string;
 }
 
-/** Payload for ``mcp_session`` WebSocket events (matches MCP ``init_batch_review_session``). */
+/** Public display metadata for MCP clients; session capabilities and userids are private. */
 export interface McpSessionPayload {
   coding_agent: string;
   model_name: string;

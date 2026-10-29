@@ -4,12 +4,14 @@ from __future__ import annotations
 import json
 import logging
 import shutil
+import threading
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastapi import WebSocket
 
 from backend.models import Comment, WsEvent
+from backend.user_identity import default_userid, normalize_userid
 
 if TYPE_CHECKING:
     pass
@@ -33,33 +35,111 @@ class AppState:
         self.ws_connections: set[WebSocket] = set()
         #: Base URL of the web UI (``http://host:port``), set when the HTTP server binds.
         self.web_app_url: str | None = None
-        #: Set when the MCP client calls ``init_batch_review_session`` (not used by REST).
-        self.mcp_session_initialized: bool = False
+        #: Local account used for browser/REST comments when a caller does not provide a userid.
+        self.default_userid: str = default_userid()
+        #: MCP client metadata and current userid, keyed by application session ID.
+        self.mcp_sessions: dict[str, dict[str, str]] = {}
+        #: Legacy connection IDs mapped to application session IDs for argument-free compatibility.
+        self.mcp_context_sessions: dict[str, str] = {}
+        self._mcp_sessions_lock = threading.RLock()
+        self._max_mcp_sessions = 256
+        #: Most recently initialized session, retained for the existing UI footer.
         self.mcp_session_info: dict[str, str] | None = None
 
     # ------------------------------------------------------------------
-    # Path helpers
+    # MCP session helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def public_mcp_session(info: dict[str, str]) -> dict[str, str]:
+        """Return display-only client metadata without the session capability or userid."""
+        return {
+            "coding_agent": info["coding_agent"],
+            "model_name": info["model_name"],
+            "client_version": info["client_version"],
+        }
 
     def register_mcp_session(
         self,
+        session_id: str,
         coding_agent: str,
         model_name: str = "",
         client_version: str = "",
+        userid: str | None = None,
+        context_session_id: str | None = None,
     ) -> dict[str, str]:
-        """Record which host and model are using MCP; enables other MCP tools for this process."""
+        """Register one MCP/agent session without changing any other session."""
+        normalized_session_id = (session_id or "").strip()
+        if not normalized_session_id:
+            raise ValueError("session_id must be a non-empty string")
         agent = (coding_agent or "").strip()
         if not agent:
             raise ValueError("coding_agent must be a non-empty string")
         info: dict[str, str] = {
+            "session_id": normalized_session_id,
             "coding_agent": agent,
             "model_name": (model_name or "").strip(),
             "client_version": (client_version or "").strip(),
+            "userid": normalize_userid(userid, fallback=self.default_userid),
         }
-        self.mcp_session_info = info
-        self.mcp_session_initialized = True
-        logger.info("MCP session registered: %s", info)
+        with self._mcp_sessions_lock:
+            if normalized_session_id in self.mcp_sessions:
+                raise ValueError("session_id is already registered")
+            if len(self.mcp_sessions) >= self._max_mcp_sessions:
+                raise ValueError(
+                    f"MCP session capacity reached ({self._max_mcp_sessions}); "
+                    "restart the server to clear registered sessions"
+                )
+            self.mcp_sessions[normalized_session_id] = info
+            if context_session_id:
+                self.mcp_context_sessions[context_session_id] = normalized_session_id
+            self.mcp_session_info = info
+        logger.info("MCP client registered: %s", self.public_mcp_session(info))
         return dict(info)
+
+    def get_mcp_session(self, session_id: str) -> dict[str, str] | None:
+        """Return a copy of one registered session, if it exists."""
+        with self._mcp_sessions_lock:
+            info = self.mcp_sessions.get(session_id)
+            return dict(info) if info else None
+
+    def get_mcp_session_for_context(self, context_session_id: str) -> dict[str, str] | None:
+        """Resolve a legacy connection ID to its registered application session."""
+        with self._mcp_sessions_lock:
+            application_session_id = self.mcp_context_sessions.get(context_session_id)
+            info = self.mcp_sessions.get(application_session_id or "")
+            return dict(info) if info else None
+
+    def set_mcp_session_userid(self, session_id: str, userid: str) -> dict[str, str]:
+        """Change only one MCP session's current userid."""
+        if userid is None or not userid.strip():
+            raise ValueError("userid must be a non-empty string")
+        normalized = normalize_userid(userid)
+        with self._mcp_sessions_lock:
+            info = self.mcp_sessions.get(session_id)
+            if info is None:
+                raise KeyError(session_id)
+            info["userid"] = normalized
+            self.mcp_session_info = info
+            return dict(info)
+
+    def get_public_mcp_session_info(self) -> dict[str, str] | None:
+        """Return display-only metadata for the most recently active MCP client."""
+        with self._mcp_sessions_lock:
+            return (
+                self.public_mcp_session(self.mcp_session_info)
+                if self.mcp_session_info
+                else None
+            )
+
+    def list_public_mcp_sessions(self) -> list[dict[str, str]]:
+        """Return bounded display-only snapshots of clients registered since startup."""
+        with self._mcp_sessions_lock:
+            return [self.public_mcp_session(info) for info in self.mcp_sessions.values()]
+
+    # ------------------------------------------------------------------
+    # Path helpers
+    # ------------------------------------------------------------------
 
     def resolve_safe_path(self, rel_or_abs: str) -> Path:
         """Resolve a path and verify it stays within repo_root.
@@ -183,6 +263,7 @@ class AppState:
         line_end: int,
         text: str = "",
         highlighted_text: str = "",
+        userid: str | None = None,
         region_x1: float | None = None,
         region_y1: float | None = None,
         region_x2: float | None = None,
@@ -209,6 +290,7 @@ class AppState:
             anchor_kind=anchor_kind,
         )
         comment = Comment(
+            userid=normalize_userid(userid, fallback=self.default_userid),
             file_path=file_path,
             line_start=line_start,
             line_end=line_end,
@@ -430,6 +512,8 @@ class AppState:
                 key=lambda x: (x.pdf_page or 0, x.line_start, x.region_y1 or 0.0),
             ):
                 lines.append(f"### `{c.reference}`")
+                lines.append(f"> **User ID:** `{c.userid}`")
+                lines.append(">")
                 if c.pdf_page is not None and c.region_x1 is not None:
                     lines.append(
                         f"> **PDF page {c.pdf_page}** (normalized 0–1): "
